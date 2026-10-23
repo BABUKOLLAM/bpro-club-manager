@@ -173,6 +173,20 @@ CREATE TABLE IF NOT EXISTS scores(id INTEGER PRIMARY KEY, post_id INTEGER NOT NU
 CREATE TABLE IF NOT EXISTS push_subs(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, member_id INTEGER, endpoint TEXT UNIQUE NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
   created REAL NOT NULL, last_ok REAL, failures INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS ix_push_member ON push_subs(member_id);
+CREATE TABLE IF NOT EXISTS gateway_orders(id INTEGER PRIMARY KEY, provider TEXT NOT NULL DEFAULT 'razorpay', order_id TEXT UNIQUE NOT NULL, member_id INTEGER, amount REAL NOT NULL,
+  head TEXT NOT NULL DEFAULT 'subscription', year INTEGER, post_id INTEGER, booking_id INTEGER, note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'created',
+  payment_id TEXT NOT NULL DEFAULT '', receipt_id INTEGER, created REAL NOT NULL, paid_at REAL, raw TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_gw_member ON gateway_orders(member_id, status);
+CREATE TABLE IF NOT EXISTS polls(id INTEGER PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'poll', title_en TEXT NOT NULL, title_ml TEXT NOT NULL DEFAULT '', description_en TEXT NOT NULL DEFAULT '',
+  description_ml TEXT NOT NULL DEFAULT '', audience TEXT NOT NULL DEFAULT 'members', committee_id INTEGER, starts_at TEXT NOT NULL DEFAULT '', ends_at TEXT NOT NULL DEFAULT '',
+  anonymous INTEGER NOT NULL DEFAULT 1, max_choices INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'draft', results_live INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER, created REAL NOT NULL, updated REAL NOT NULL, opened_at REAL, closed_at REAL, deleted INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS poll_options(id INTEGER PRIMARY KEY, poll_id INTEGER NOT NULL, idx INTEGER NOT NULL DEFAULT 0, label_en TEXT NOT NULL, label_ml TEXT NOT NULL DEFAULT '',
+  member_id INTEGER, note TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_pollopt ON poll_options(poll_id, idx);
+CREATE TABLE IF NOT EXISTS ballots(poll_id INTEGER NOT NULL, member_id INTEGER NOT NULL, created REAL NOT NULL, PRIMARY KEY(poll_id, member_id));
+CREATE TABLE IF NOT EXISTS votes(id INTEGER PRIMARY KEY, poll_id INTEGER NOT NULL, option_id INTEGER NOT NULL, member_id INTEGER, created REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_votes_poll ON votes(poll_id, option_id);
 """
 
 # (table, column, definition) added to databases created before the column existed
@@ -302,6 +316,15 @@ DEFAULT_SETTINGS = {
     "upi_name": "",
     "teams": json.dumps([]),
     "asset_prefix": "AST",
+    "about_en": "",
+    "about_ml": "",
+    "map_url": "",
+    "social_facebook": "",
+    "social_instagram": "",
+    "social_youtube": "",
+    "social_whatsapp": "",
+    "site_cover": "",
+    "backup_keep": "14",
 }
 
 

@@ -6,7 +6,7 @@ import os
 import threading
 import time
 
-from . import comms, db, i18n
+from . import backup, comms, db, i18n
 
 log = logging.getLogger("club.scheduler")
 
@@ -50,6 +50,16 @@ def run_daily(force=False):
     return out
 
 
+def nightly_backup(force=False):
+    """Once a day after CLUB_BACKUP_HOUR (default 2 am): local backup, Drive upload when configured."""
+    today = dt.date.today().isoformat()
+    if not force and (db.setting("last_backup_day", "") == today or dt.datetime.now().hour < int(os.environ.get("CLUB_BACKUP_HOUR", "2"))):
+        return None
+    with db.tx() as c:
+        db.set_setting(c, "last_backup_day", today)
+    return backup.run("nightly")
+
+
 _thread = None
 
 
@@ -63,6 +73,7 @@ def start():
             try:
                 if dt.datetime.now().hour >= int(os.environ.get("CLUB_DAILY_HOUR", "8")):
                     run_daily()
+                nightly_backup()
             except Exception:  # noqa: BLE001
                 log.exception("daily job")
             time.sleep(600)

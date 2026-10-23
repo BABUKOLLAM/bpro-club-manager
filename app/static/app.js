@@ -109,7 +109,7 @@ function navItems() {
   if (m || can('members.view')) items.push({ h: '#/directory', l: t('directory') });
   items.push({ h: '#/committees', l: t('committees') }); items.push({ h: '#/meetings', l: t('meetings') }); items.push({ h: '#/actions', l: t('actions') }); items.push({ h: '#/plans', l: t('plans') });
   items.push({ h: '#/library', l: t('library') }); if (m) { items.push({ h: '#/library/mine', l: t('my_books') }); items.push({ h: '#/payments', l: t('payments') }); }
-  items.push({ h: '#/documents', l: t('documents') }); items.push({ h: '#/bookings', l: t('bookings') });
+  items.push({ h: '#/documents', l: t('documents') }); items.push({ h: '#/bookings', l: t('bookings') }); items.push({ h: '#/polls', l: t('polls') });
   if (S.judging) items.push({ h: '#/judging', l: t('judging') });
   const office = [];
   if (can('members.view') || can('library.manage') || can('posts.manage') || (u.convenes || []).length) office.push({ h: '#/scan', l: t('scan') });
@@ -139,7 +139,7 @@ A.logout = async () => { await post('/api/auth/logout'); S.user = null; S.member
 function pubShell(body) {
   const info = S.info || {};
   return `<div class="pub"><header><div class="brand">${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div>
-  ${langBtn()} <a class="btn" href="#/login">${t('sign_in')}</a>${info.public_registration === '1' ? `<a class="btn accent" href="#/apply">${t('apply')}</a>` : ''}</header><main>${body}</main><footer>${esc(info.footer_credit || '')}</footer></div>`;
+  ${langBtn()} <a class="btn" href="/site?lang=${S.lang}">${t('website')}</a><a class="btn" href="#/login">${t('sign_in')}</a>${info.public_registration === '1' ? `<a class="btn accent" href="#/apply">${t('apply')}</a>` : ''}</header><main>${body}</main><footer>${esc(info.footer_credit || '')}</footer></div>`;
 }
 async function viewLanding() {
   const posts = await get('/api/public/posts');

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import auth, comms, db, i18n, push
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, reports, scheduler, facilities
+from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -147,6 +147,7 @@ def settings_for(u):
     s["roles"] = auth.ROLE_LABELS
     s["teams"] = json.loads(s["teams"])
     s["doc_categories"] = DOC_CATEGORIES
+    s["gateway"] = payments.configured() or bool(payments._create_order_override)
     s["asset_categories"] = facilities.ASSET_CATEGORIES
     s["perms"] = {k: sorted(v) for k, v in auth.PERMS.items()}
     return s
@@ -557,6 +558,20 @@ def dashboard(user=Depends(current_user)):
     return reports.dashboard(user)
 
 
+# ---------- backups ----------
+@app.get("/api/backup")
+def backup_status(user=Depends(require("settings.manage"))):
+    return backup.status()
+
+
+@app.post("/api/backup/run")
+def backup_run(user=Depends(require("settings.manage"))):
+    r = backup.run("manual")
+    with db.tx() as c:
+        db.audit(c, user["id"], "backup.run", detail=r.get("error") or ",".join(r.get("files") or []))
+    return r
+
+
 # ---------- daily jobs (also callable by hand) ----------
 @app.post("/api/jobs/daily")
 def run_daily(user=Depends(require("settings.manage"))):
@@ -571,4 +586,7 @@ app.include_router(library.router)
 app.include_router(finance.router)
 app.include_router(reports.router)
 app.include_router(facilities.router)
+app.include_router(payments.router)
+app.include_router(polls.router)
+app.include_router(site.router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
