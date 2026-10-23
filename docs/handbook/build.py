@@ -8,21 +8,92 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 IMG = "img"
 e = html.escape
-VERSION = "1.0 · October 2026"
+VERSION = "1.1"
+VERSION_DATE = "October 2026"
+CREDIT_NAME = "Dr. Babu B"
+CREDIT_QUALS = "MBA, MPhil, PGDTRM, PGDHRM, Ph.D. (UGC-NET)"
+CREDIT_ORG = "Bpro Consulting & Technologies"
+CREDIT_SITES = ["www.bpropms.com", "www.drbabu.in", "www.bprohrms.com", "www.copperliners.com"]
+_SIZES = {}
+
+
+def img_size(name):
+    if name not in _SIZES:
+        from PIL import Image
+        ext = "jpg"
+        with Image.open(os.path.join(HERE, IMG, f"{name}.{ext}")) as im:
+            _SIZES[name] = im.size
+    return _SIZES[name]
+
 
 # ---------- small builders ----------
+def _win(name, inner=""):
+    ext = "jpg"
+    return f"<div class='win'><div class='bar'><i></i><i></i><i></i></div><div class='pinwrap'><img src='{IMG}/{name}.{ext}' alt=''>{inner}</div></div>"
+
+
 def fig(name, caption, kind="desk", w=None):
-    """kind: desk (full width), phone (framed), phones (several framed in a row), small (half width)"""
+    """kind: desk (full width, window frame), phone (framed), phones (several framed in a row), small (half width)"""
     if kind == "phones":
         names = name if isinstance(name, list) else [name]
         inner = "".join(f"<div class='phone'><img src='{IMG}/{n}.jpg' alt=''></div>" for n in names)
         return f"<figure class='phones'><div class='row'>{inner}</div><figcaption>{caption}</figcaption></figure>"
     if kind == "phone":
         return f"<figure class='phone-fig'><div class='phone'><img src='{IMG}/{name}.jpg' alt=''></div><figcaption>{caption}</figcaption></figure>"
+    if kind == "plain":
+        return f"<figure class='desk'{(' style=' + chr(39) + 'max-width:' + w + chr(39)) if w else ''}><img src='{IMG}/{name}.png' alt='' style='width:100%;border-radius:12px;box-shadow:0 10px 28px rgba(27,31,59,.18)'><figcaption>{caption}</figcaption></figure>"
     cls = "small" if kind == "small" else "desk"
-    ext = "png" if name == "ecard" else "jpg"
     style = f" style='max-width:{w}'" if w else ""
-    return f"<figure class='{cls}'{style}><img src='{IMG}/{name}.{ext}' alt=''><figcaption>{caption}</figcaption></figure>"
+    return f"<figure class='{cls}'{style}>{_win(name)}<figcaption>{caption}</figcaption></figure>"
+
+
+def pins(name, points, caption, kind="desk"):
+    """A screenshot with numbered pointers and tooltips. points: [(x%, y%, short tooltip, legend text, side)]"""
+    marks = []
+    for i, pt in enumerate(points, 1):
+        x, y, short, legend = pt[:4]
+        side = pt[4] if len(pt) > 4 else ("l" if x > 70 else "")
+        marks.append(f"<span class='pin' style='left:{x}%;top:{y}%'>{i}</span><span class='tip {side}' style='left:{x}%;top:{y}%'>{e(short)}</span>")
+    inner = "".join(marks)
+    if kind == "phone":
+        body = f"<div class='phone' style='width:62mm'><div class='pinwrap'><img src='{IMG}/{name}.jpg' alt='' style='max-height:none'>{inner}</div></div>"
+        fig_html = f"<figure class='phone-fig'>{body}<div><figcaption style='margin-top:0'>{caption}</figcaption><ul class='legend' style='columns:1'>{''.join(f'<li><i>{i}</i>{e(pt[3])}</li>' for i, pt in enumerate(points, 1))}</ul></div></figure>"
+        return fig_html
+    legend = "".join(f"<li><i>{i}</i>{e(pt[3])}</li>" for i, pt in enumerate(points, 1))
+    return f"<figure class='desk'>{_win(name, inner)}<figcaption>{caption}</figcaption><ul class='legend'>{legend}</ul></figure>"
+
+
+def lens(name, x, y, zoom, title, text, d=46):
+    """A circular magnifier on a point of a screenshot (x, y in %), beside a short explanation."""
+    w, h = img_size(name)
+    dm = d  # mm
+    bw = zoom * dm
+    bh = bw * h / w
+    px = dm / 2 - bw * x / 100
+    py = dm / 2 - bh * y / 100
+    ext = "jpg"
+    return (f"<div class='lens-wrap'><div class='lens-row'><div class='lens' style='background-image:url({IMG}/{name}.{ext});background-size:{bw:.1f}mm auto;background-position:{px:.1f}mm {py:.1f}mm'></div>"
+            f"<div class='lens-txt'><b>{e(title)}</b>{text}</div></div></div>")
+
+
+def sticky(text, color="", title=""):
+    return f"<div class='sticky {color}'>{('<b>' + e(title) + '</b>') if title else ''}{text}</div>"
+
+
+def aside(main_html, sticky_html):
+    return f"<div class='aside'><div style='flex:1'>{main_html}</div>{sticky_html}</div>"
+
+
+def dyk(text):
+    return f"<div class='dyk'><b>Did you know?</b>{text}</div>"
+
+
+def quest(title, items, xp=20):
+    return f"<div class='quest'><span class='xp'>+{xp} XP</span><b class='t'>{e(title)}</b><ul>{''.join(f'<li>{i}</li>' for i in items)}</ul></div>"
+
+
+def badges(items):
+    return "<div class='badges'>" + "".join(f"<span class='badge {c}'><span class='i'>{ic}</span>{e(t)}</span>" for ic, t, c in items) + "</div>"
 
 
 def steps(items):
@@ -53,18 +124,29 @@ def close():
     return ""
 
 
+TOTAL_CH = 42
+PAGES = {}   # chapter number -> page, filled by the second pass
+
+
 def chapter(num, title, sub, part):
     pre = close()
     _open[0] = True
-    return pre + f"<section class='chapter' id='c{num}'><div class='ch-head'><div class='ch-part'>{e(part)}</div><div class='ch-num'>{num}</div><h1>{e(title)}</h1><p class='ch-sub'>{e(sub)}</p></div>"
+    letter = part.split(" ")[1] if part.startswith("Part ") else "A"
+    pct = int(num / TOTAL_CH * 100)
+    return pre + f"<section class='chapter' id='c{num}' data-ch='{num}'><div class='ch-head {letter}'><div class='ch-num'>{num:02d}</div><div class='ch-part'>{e(part)}</div><h1>{e(title)}</h1><p class='ch-sub'>{e(sub)}</p>" \
+        f"<div class='prog'><span>Chapter {num} of {TOTAL_CH}</span><span class='bar'><i style='width:{pct}%'></i></span><span class='xp'>+10 XP</span></div></div>"
+
+
+LEVELS = {"A": ("0", "Welcome", "read the map"), "B": ("1", "Member", "apply, e-card, events, library, pay"), "C": ("2", "Office bearer", "approve, publish, minutes, accounts"),
+          "D": ("3", "Operator", "server, console, billing"), "E": ("★", "Reference", "look anything up")}
 
 
 def part_opener(letter, title, blurb, items):
-    return close() + f"""<section class='part' id='p{letter}'><div class='part-in'><div class='part-letter'>Part {letter}</div><h1>{e(title)}</h1><p>{e(blurb)}</p>
-<ul>{''.join(f'<li>{e(i)}</li>' for i in items)}</ul></div></section>"""
+    n, lv, sub = LEVELS[letter]
+    return close() + f"""<section class='part {letter}' id='p{letter}'><div class='part-in'><div class='part-letter'>Part {letter}</div><h1>{e(title)}</h1><p>{e(blurb)}</p>
+<ul>{''.join(f'<li>{e(i)}</li>' for i in items)}</ul><div class='level'><span class='n'>{n}</span><span><b>Level {n} · {lv}</b><small>{sub}</small></span></div></div></section>"""
 
 
-# ---------- diagrams (inline SVG) ----------
 def flow(nodes, w=760, accent=False):
     """A left-to-right flow of pill nodes with arrows. nodes: [(title, sub)]"""
     n = len(nodes); gap = 28; bw = (w - gap * (n - 1)) / n; h = 74
@@ -139,16 +221,28 @@ def build():
     P = []  # pieces
     A = P.append
     A(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>ClubPro Handbook</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manjari:wght@400;700&family=Noto+Sans+Malayalam:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=Caveat:wght@500;700&family=Manjari:wght@400;700&family=Noto+Sans+Malayalam:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="handbook.css"></head><body>""")
     # ----- cover -----
-    A(f"""<section class='cover'>
-<div class='cover-top'><div class='brand'>ClubPro</div><div class='by'>Powered by Team Bpro</div></div>
+    A(f"""<section class='full cover'>
+<div class='cover-top'><div class='brand'>ClubPro</div><div class='pill'>User Manual &amp; Handbook · v{VERSION}</div></div>
 <div class='cover-mid'><h1>User Manual<br>&amp; Handbook</h1><p class='lead'>Membership · Library &amp; reading room · Events &amp; competitions · Committees &amp; minutes · Accounts &amp; dues · WhatsApp, SMS and e-mail</p>
-<p class='lead2'>For members, office bearers and the club's operator. In English, with every screen also available in Malayalam.</p></div>
+<p class='lead2'>For members, office bearers and the club's operator. English, with every screen also in Malayalam.</p></div>
+<div class='stickers'><span class='sticker'>90 screenshots</span><span class='sticker b'>42 chapters · 5 levels</span><span class='sticker c'>ഇംഗ്ലീഷ് · മലയാളം</span></div>
 <div class='cover-shots'><img class='c1' src='{IMG}/d-dashboard.jpg' alt=''><img class='c2' src='{IMG}/m-me.jpg' alt=''></div>
-<div class='cover-foot'><span>Version {VERSION}</span><span>clubpro · for arts &amp; sports clubs, libraries and reading rooms</span></div></section>""")
-
+<div class='cover-foot'><div class='credit'><b>Designed &amp; Developed by {CREDIT_NAME}</b>{CREDIT_QUALS}<br>{CREDIT_ORG} · {' | '.join(CREDIT_SITES)}</div><div style='text-align:right'><b>Version {VERSION}</b>{VERSION_DATE} · Powered by Team Bpro</div></div></section>""")
+    # ----- colophon -----
+    A(f"""<section class='colophon'><h1>About this handbook</h1>
+<div class='credit-card'><div class='ini'>BB</div><div><b>Designed &amp; Developed by {CREDIT_NAME}</b>{CREDIT_QUALS}<br>{CREDIT_ORG}<div class='sites'>{''.join(f'<span>{x}</span>' for x in CREDIT_SITES)}</div></div></div>
+<div class='box'><b>Document</b><table class='version-table'><tr><th>Version</th><th>Date</th><th>What changed</th></tr>
+<tr><td>1.1</td><td>{VERSION_DATE}</td><td>Visual edition: colour system, numbered pointers and tooltips, lens zoom-ins, sticky notes, missions and badges, barcodes on every page, contents with page numbers, credits.</td></tr>
+<tr><td>1.0</td><td>{VERSION_DATE}</td><td>First edition: five parts, 42 chapters, 90 screenshots, diagrams, reference tables.</td></tr></table></div>
+<div class='box'><b>How the page furniture works</b><ul style='margin:4px 0 0;padding-left:18px'>
+<li><b>Barcode</b> at the foot of every page encodes the handbook version and page (for example <code>CLUBPRO-HB-{VERSION}-P007</code>), so a photographed or printed page can always be traced to its edition.</li>
+<li><b>Progress bar and XP</b> in each chapter head show how far you are through the book; <b>missions</b> at the end of chapters are things to try in the app; <b>badges</b> mark what you can do once a part is finished.</li>
+<li><b>Pointers</b> on screenshots are numbered and explained under the picture; <b>lenses</b> zoom into one control; <b>sticky notes</b> carry the advice an experienced secretary would give you.</li>
+<li><span class='hl'>Highlighted text</span> is the thing to remember from a paragraph.</li></ul></div>
+<p class='small'>ClubPro is a product of {CREDIT_ORG}. Screens shown are from a demonstration club; names are fictitious. © {VERSION_DATE.split()[-1]} {CREDIT_ORG}.</p></section>""")
     # ----- contents -----
     toc = [("A", "Welcome", ["How to use this book", "Three kinds of reader", "Languages, phones and the installed app"]),
            ("B", "Members' guide", ["Getting started", "Applying for membership", "Signing in and forgotten passwords", "Home and the menu", "Profile, family and the e-card",
@@ -161,16 +255,17 @@ def build():
     n = 1
     rows = []
     for letter, title, chs in toc:
-        rows.append(f"<div class='toc-part'><span>Part {letter}</span>{e(title)}</div>")
+        rows.append(f"<div class='toc-part {letter}'><span>Part {letter}</span>{e(title)}</div>")
         for c in chs:
-            rows.append(f"<div class='toc-row'><span class='n'>{n}</span><span class='t'>{e(c)}</span></div>"); n += 1
-    A(f"<section class='toc'><h1>Contents</h1><div class='toc-grid'>{''.join(rows)}</div><p class='toc-note'>Chapter numbers run through the whole book; the PDF's bookmarks (sidebar) jump to any chapter.</p></section>")
+            pg = PAGES.get(n, "")
+            rows.append(f"<div class='toc-row'><span class='n'>{n}</span><span class='t'>{e(c)}</span><span class='dots'></span><span class='pg'>{pg}</span></div>"); n += 1
+    A(f"<section class='toc'><h1>Contents</h1><div class='toc-grid'>{''.join(rows)}</div><p class='toc-note small'>Page numbers refer to the printed page number at the foot of each page. The PDF's bookmarks (sidebar) jump to any chapter.</p></section>")
 
     # ================= PART A =================
     A(part_opener("A", "Welcome", "ClubPro runs a club's whole life in one place and in two languages. This book shows every screen, step by step.",
                   ["Who this book is for and how it is arranged", "What the symbols mean", "Phones, computers and the installed app"]))
     A(chapter(1, "How to use this book", "Three readers, one product", "Part A · Welcome"))
-    A("""<p>ClubPro is used by three kinds of people, and this book has a part for each:</p>
+    A("""<p>ClubPro is used by three kinds of people, and this book has a part for each. <span class='hl'>You do not need to read it all</span>: members need Part B, office bearers Parts B and C, the operator Part D.</p>
 <div class='three'><div class='card'><b>Members</b><p>Apply, sign in, keep the e-card, register for events, borrow books, pay dues, vote. Mostly on a phone. <span class='ref'>Part B</span></p></div>
 <div class='card'><b>Office bearers</b><p>Secretary, president, treasurer, librarian and the administrator: approvals, publishing, minutes, the library desk, accounts, broadcasts, settings. Usually on a laptop. <span class='ref'>Part C</span></p></div>
 <div class='card'><b>The operator</b><p>Team Bpro, or whoever runs the server: installing, creating clubs, pricing, billing, channels, backups. <span class='ref'>Part D</span></p></div></div>
@@ -179,6 +274,8 @@ def build():
     A(tip("<b>Careful</b> — something that cannot be undone, or that members will notice.", "warn"))
     A(tip("<b>Note</b> — background that explains why the screen behaves as it does.", "note"))
     A(tip("<b>Malayalam</b> — the Malayalam name of the screen or button, as members see it.", "ml"))
+    A(aside(badges([("🎓", "Level 1 · Member", ""), ("🏅", "Level 2 · Office bearer", "gold"), ("🛠️", "Level 3 · Operator", "teal"), ("📚", "Reference", "pink")]),
+                sticky("Each part is a level. Finish a level's missions in the app and you have earned its badge. No account on earth is checking; it is a way to make sure you tried every screen once.", "pink", "Why levels?")))
     A(chapter(2, "Three kinds of reader", "What each person sees", "Part A · Welcome"))
     A("""<p>Everyone opens the same web address. What appears depends on who signs in:</p>""")
     A(table(["Who", "Signs in with", "Sees", "Typical device"],
@@ -197,6 +294,7 @@ def build():
              ("Open it from the home screen", "it now runs full-screen like an app, with the club's own icon."),
              ("Allow notifications", "when asked under <i>My profile → Notification preferences</i>, so event reminders and receipts arrive even when the app is closed.")]))
     A(tip("The app keeps working on a weak connection: screens you have opened before load instantly, and a clear <i>You are offline</i> page appears instead of an error.", "note"))
+    A(quest("Mission 1 · Get set up", ["Open the club's address on your phone and add it to the home screen", "Switch the language once each way", "Allow notifications when asked"], 10))
     A(close())
 
     # ================= PART B =================
@@ -205,7 +303,8 @@ def build():
     A(chapter(4, "Getting started", "From the front page to your first sign-in", "Part B · Members"))
     A(glance(["Your phone number is your login once you are a member.", "Not a member yet? Apply from the front page; the committee approves and you receive your number by WhatsApp or SMS.",
               "Lost the password? One-time code to your phone."]))
-    A(fig("m-home", "The member's home page after signing in: upcoming events, the latest news and the menu button (☰) at the top left.", "phone"))
+    A(pins("m-home", [(8, 3, "Menu", "The menu (☰): every screen is one tap away; office bearers see an extra Office group at the bottom."), (88, 3, "Language", "English / മലയാളം switch; also sets the language of the messages you receive."),
+                      (50, 22, "Upcoming", "Events you can register for, with Registration open pills."), (50, 60, "Latest", "The newest news items; tap to read.")], "The member's home page after signing in.", "phone"))
     A(tip("<b>Malayalam</b>: Home = ഹോം · Sign in = പ്രവേശിക്കുക · Apply for membership = അംഗത്വത്തിന് അപേക്ഷിക്കുക", "ml"))
     A(chapter(5, "Applying for membership", "Six steps, two minutes", "Part B · Members"))
     A(glance(["The form saves itself as you go; a refresh loses nothing.", "Family members can be added now or later from your profile.", "The photo can be a selfie or a picture from the gallery; it becomes your e-card photo."]))
@@ -220,6 +319,10 @@ def build():
              ("Password and consent", "8 characters or more; confirm that the details are true and that the club may message you."),
              ("Review and send", "check everything, then <i>Send application</i>. A <i>What happens next</i> page confirms it.")]))
     A(fig("m-apply-done", "After sending: what happens next, and a reminder that the number arrives by WhatsApp or SMS once approved.", "phone"))
+    A(lens("m-apply-4", 50, 52, 2.2, "Selfie or gallery", "Step 4 offers both: <i>Take a selfie</i> opens the camera; <i>Choose from gallery</i> picks any picture. The photo is shrunk on the phone before it is sent, so it works on slow connections."))
+    A(aside(dyk("The form keeps a draft in the phone's browser. Close the browser, come back tomorrow, and the steps you filled are still there until you send or clear them."),
+            sticky("Ask the applicant to write the name in English exactly as on their ID. It goes on the e-card and the receipts.", "", "Secretary's tip")))
+    A(quest("Mission 2 · Apply", ["Fill all six steps on a phone, including one family member", "Take a selfie for the photo", "Send the application and read the What happens next page"], 20))
     A(tip("If the office rejects an application the applicant is told why by message and can apply again with corrections.", "note"))
     A(chapter(6, "Signing in and forgotten passwords", "", "Part B · Members"))
     A(steps([("Sign in", "with the phone number used in the application (or the e-mail the office gave you) and your password."),
@@ -239,12 +342,15 @@ def build():
     A(chapter(8, "Profile, family and the e-card", "Your membership in your pocket", "Part B · Members"))
     A(glance(["The e-card carries your photo, number, blood group, validity and a QR code the office scans.", "Save it as a picture or share it on WhatsApp; it is also printable.",
               "Add family with dates of birth and blood groups; the office verifies them."]))
-    A(fig("m-me", "My profile: the e-card at the top, then your details. Tap <i>Edit</i> to update your phone, address or photo.", "phone"))
+    A(pins("m-me", [(40, 12, "Tabs", "Profile · Family · Preferences · Password."), (50, 25, "E-card", "Your electronic membership card with the QR the office scans."), (37, 41, "Save to phone", "Renders the card as a picture in your gallery."),
+                     (33, 45, "Share · Print", "Send it on WhatsApp, or print a credit-card-size version."), (80, 62, "Edit", "Update phone, address, occupation or photo; the office verifies big changes.")], "My profile: the e-card at the top, then your details.", "phone"))
+    A(lens("m-me", 80, 31, 2.4, "The QR on the e-card", "Encodes your membership number. At a meeting, an event or the reading room the office scans it with <i>Scan QR</i> and you are marked present or signed in without typing anything."))
     A(fig("ecard", "The e-card as saved to the phone: the club's colours and logo, both scripts, membership type, number, blood group, joined date, validity and the QR.", "desk", "420px"))
     A(steps([("Save to phone", "renders the card as a picture in your gallery."), ("Share", "sends the picture through WhatsApp or any app."), ("Print", "opens a credit-card-sized printable version."),
              ("My family", "add spouse, children, parents; relation, date of birth, blood group, phone. The office marks each one <i>verified</i>."),
              ("Change password", "under the profile tabs; a strong password is 8 characters or more.")]))
     A(fig("m-family", "My family: the people you can register for events, and the blood groups the club's donor search uses.", "phone"))
+    A(quest("Mission 3 · Your card", ["Save the e-card to your phone and share it with yourself on WhatsApp", "Add one family member with a blood group", "Change your password"], 20))
     A(chapter(9, "Notifications and preferences", "Choose how the club reaches you", "Part B · Members"))
     A(fig(["m-preferences", "m-notifications"], "Notification preferences, and the in-app list of everything the club has sent you.", "phones"))
     A(steps([("Channels", "tick WhatsApp, SMS and e-mail as you like; the app notification is always kept."), ("Phone notifications", "turn on to get reminders and receipts on the lock screen (needs the installed app and HTTPS)."),
@@ -261,10 +367,14 @@ def build():
     A(chapter(12, "Paying dues and fees", "UPI, online, or at the desk", "Part B · Members"))
     A(glance(["My payments shows what is due this year and every receipt the club has issued you.", "Pay by UPI: scan or tap, then tell the club the transaction number; the treasurer confirms and the receipt arrives.",
               "Where the club has online payment, Pay online settles it instantly with an automatic receipt."]))
-    A(fig(["m-payments", "m-pay-upi"], "My payments, and the UPI sheet with the club's UPI ID, a QR for any UPI app and the <i>I have paid</i> form.", "phones"))
+    A(pins("m-payments", [(50, 18, "Dues", "What you owe this year and what it covers; green when nothing is due."), (30, 30, "Pay by UPI", "Opens the UPI sheet: the club's UPI ID, a QR, and a button that opens your UPI app with the amount filled in."),
+                          (69, 30, "I have paid", "Tell the treasurer the UTR / transaction ID; your receipt follows once confirmed."), (50, 45, "Receipts", "Every receipt the club has issued you, with the number and the head.")], "My payments and the way to pay.", "phone"))
+    A(fig("m-pay-upi", "The UPI sheet: the club's UPI ID, a QR for any UPI app and the <i>I have paid</i> form.", "phone"))
+    A(sticky("Write the 12-digit UTR, not the amount. The treasurer matches it in the bank app in seconds.", "blue", "Member's tip"))
     A(steps([("Open My payments", "the amount due and the items it covers are at the top."), ("Pay by UPI", "scan the QR with Google Pay, PhonePe or any UPI app, or tap <i>Open UPI app</i>."),
              ("I have paid", "enter the 12-digit UTR or transaction ID from your UPI app."), ("Receipt", "the treasurer confirms the payment; your receipt arrives by WhatsApp or e-mail and stays under My payments.")]))
     A(tip("Paying at the office works as before: the treasurer records it and the receipt is messaged to you.", "note"))
+    A(dyk("Receipts are never deleted. If one is wrong it is reversed with a voucher, so what you were messaged always matches the club's cash book."))
     A(chapter(13, "Documents, bookings, polls, meetings, directory", "The rest of the menu", "Part B · Members"))
     A(fig(["m-documents", "m-bookings", "m-polls"], "Documents you may read, the hall and ground calendar with a booking request, and open polls.", "phones"))
     A(fig(["m-meetings", "m-directory"], "Meetings of your committees (and the general body), and the members directory.", "phones"))
@@ -273,6 +383,8 @@ def build():
              ("Polls &amp; elections", "one vote per member; a secret ballot never records who chose what. Results appear when voting closes."),
              ("Meetings", "notices, agenda and, once published, the minutes and the action items assigned to you."),
              ("Directory", "members who allowed their phone to be shown; tap to call or WhatsApp.")]))
+    A(quest("Mission 4 · Around the club", ["Register yourself or a family member for an event", "Reserve a book that is out", "Vote in a poll (or open the polls page)", "Read a document"], 20))
+    A(badges([("🎓", "Level 1 complete · Member", "gold")]))
     A(close())
 
     # ================= PART C =================
@@ -290,13 +402,17 @@ def build():
              ["Member", "അംഗം", "Part B"]]))
     A(fig("d-landing", "The front page on a laptop. Office bearers sign in here with the e-mail or phone the administrator gave them.", "desk"))
     A(chapter(15, "The dashboard", "The club at a glance", "Part C · Office"))
-    A(fig("d-dashboard", "Home for an office bearer: counters that need attention are coloured; each tile opens the matching screen.", "desk"))
+    A(pins("d-dashboard", [(10, 7, "Logo · club", "The club's logo and name; set under Settings → Branding."), (41, 17, "Pending applications", "Coloured when something needs you; opens Applications."),
+                           (41, 40, "Dues", "Members with dues and the outstanding amount; opens Dues."), (40, 57, "Upcoming", "Events with registration state."), (78, 57, "Latest", "What was published last."), (9, 74, "Office", "The office menu: your role decides what is listed.", "")],
+           "Home for an office bearer: counters that need attention are coloured; each tile opens the matching screen."))
+    A(lens("d-dashboard", 41, 17, 2.6, "A tile that needs you", "Orange numbers are things waiting: applications to approve, overdue books, members with dues, failed messages. Green and black numbers are just facts."))
     A(table(["Tile", "Means"], [["Pending applications", "applications waiting for approval → Office → Applications"], ["Minutes pending", "meetings that happened without published minutes"],
                                ["Open actions · Overdue", "action items from minutes, and those past their due date"], ["Books out · Overdue books", "loans, and loans past the due date (reminders go automatically)"],
                                ["Members with dues · Outstanding", "who has not paid this year and how much → Office → Dues"], ["Messages pending · failed", "the outbox; <i>demo</i> means a channel is not configured yet"]]))
     A(chapter(16, "First-time setup", "An hour, once", "Part C · Office"))
     A(glance(["Settings holds the club's identity, numbering, membership types, library rules, website, branding and channels.", "Users &amp; roles gives office bearers their sign-in.", "Import the old register from Excel; members then sign in with their phone number."]))
     A(fig("d-settings", "Settings → Club: names in both scripts, short name (used in membership numbers), registration number, place, address, phone, default language, self-registration, wards, UPI ID.", "desk"))
+    A(sticky("Do Settings before you import the register: the short name and the number format are baked into every membership number you issue.", "", "Do this first"))
     A(steps([("Club", "names in both scripts, short name, registration number, address, phone, e-mail. Tick <i>Allow self-registration</i> if people may apply online. List the wards; enter the club's UPI ID so members can pay."),
              ("Numbering", "membership, receipt, voucher and accession number formats with placeholders ({prefix} {year} {yy} {seq:04d}); whether the sequence restarts each year; subscription due month."),
              ("Membership types &amp; fees", "life, ordinary, associate, student, honorary — or your own, with admission and annual fees in rupees. These drive dues."),
@@ -306,7 +422,9 @@ def build():
              ("Communication", "channel status and, if the club has its own WhatsApp / SMS / e-mail / Razorpay accounts, their keys."),
              ("Save", "the button at the bottom saves every card at once.")]))
     A(fig("d-settings-numbering", "Numbering: the formats and the sequence rule.", "desk"))
-    A(fig("d-settings-brand", "Branding: the live preview shows the colours; the logo also becomes the phone icon and appears on the e-card.", "desk"))
+    A(pins("d-settings-brand", [(60, 4, "Preview", "Shows the primary colour, the logo and the accent button as members will see them."), (42, 16, "Logo", "PNG with a transparent background; becomes the phone icon and goes on the e-card."),
+                               (27, 31, "Primary", "The colour of the sidebar, buttons and the e-card band."), (63, 31, "Accent", "The colour of the Apply button, pills and the card stripe."), (42, 40, "App name", "The title and the name on the home screen."), (42, 58, "Numbering", "The formats that every membership, receipt and voucher number follows.")],
+           "Branding and numbering as the administrator sees them."))
     A(fig("d-settings-channels", "Communication: pills show which channels are on and whether the club's own account or the server's is in use.", "desk"))
     A(fig("d-users", "Office → Users: add an office bearer with login, role and, optionally, their member record; reset passwords; deactivate.", "desk"))
     A(tip("Give every office bearer their own login. The audit log then shows who approved, published or recorded what.", "tip"))
@@ -315,7 +433,10 @@ def build():
               "The old register can be imported from Excel in one go."]))
     A(flow([("Applied", "from the phone"), ("Approve / reject", "Office → Applications"), ("Number issued", "format from Settings"), ("Member messaged", "number + sign-in"), ("Active", "on the register")], accent=True))
     A(fig("d-applications", "Applications: every pending application with the details it was sent with.", "desk"))
-    A(fig("d-application-detail", "Approve, reject (with a reason the applicant receives) or open the full details. WhatsApp and Call reach the applicant directly.", "desk"))
+    A(pins("d-application-detail", [(88, 14, "WhatsApp · Call", "Reach the applicant before deciding, straight from the card.", "l"), (45, 30, "Details", "Everything from the form, in both scripts."), (30, 50, "Family", "Family members entered on the form, to be verified later."),
+                                    (28, 57, "Approve", "Issues the next number and sends the welcome message with the sign-in."), (36, 57, "Reject", "Asks for a reason; the applicant receives it and may apply again.")],
+           "An application waiting for a decision."))
+    A(lens("d-application-detail", 28, 57, 2.8, "Approve", "One click does four things: sets the membership type, issues the next number in the club's format, activates the member, and sends the welcome message with their sign-in."))
     A(steps([("Approve", "sets the type (the applicant's choice can be changed), issues the number and sends the welcome message."),
              ("Members", "the register with search and filters (status, type, ward, blood group); export to CSV; print e-cards for a filter."),
              ("Member page", "tabs for details, family, payments, books and the timeline; buttons to edit, change status (active, inactive, expelled, deceased), set a password, and WhatsApp the member."),
@@ -326,10 +447,12 @@ def build():
     A(fig("d-import", "Import register: the Excel template and the upload; a preview reports problems before anything is written.", "desk"))
     A(fig("d-card-print", "Print cards: credit-card size, two per row, with crop-friendly margins; one member or a whole filter.", "desk"))
     A(tip("Changing a member's status to <i>inactive</i> keeps every record; <i>expelled</i> and <i>deceased</i> also stop messages. Nothing is deleted.", "warn"))
+    A(quest("Mission 5 · The register", ["Approve one application and watch the welcome message appear in the Outbox", "Edit a member's photo and open their e-card", "Download the import template and look at its columns"], 30))
     A(chapter(18, "Publishing news, events and competitions", "One post, every channel", "Part C · Office"))
     A(glance(["A post can be news, an event, a camp, a social activity or a competition, with dates, venue, fee and registration.", "Publish and notify sends it to the chosen audience by WhatsApp, SMS, e-mail and push in one click.",
               "Competitions carry items, teams, fixtures, judges, scores and a points table; results are published to everyone."]))
-    A(fig("d-posts", "News &amp; events for the office: drafts and published posts, with registrations and results.", "desk"))
+    A(pins("d-posts", [(95, 5, "+ New", "Start a post: news, event, camp, competition, social activity or notice.", "l"), (45, 12, "Kind", "Filter by kind."), (33, 19, "State", "All, upcoming, past, drafts."), (60, 31, "Cards", "Each post with its registration count and whether it is public.")],
+           "News &amp; events for the office: drafts and published posts, with registrations and results."))
     A(fig("d-post-form", "The post form: kind, title and body in both scripts, when and where, registration (limit, fee, family allowed), audience, cover photo, judges for competitions.", "desk"))
     A(steps([("New post (+)", "choose the kind; fill the title and body in English and Malayalam (the member's language is used)."),
              ("Registration", "tick <i>Registration open</i>, set a limit and a fee if any; family members may be allowed."),
@@ -341,6 +464,9 @@ def build():
     A(fig("d-competition", "A competition: items, fixtures, judges, scores and the points table.", "desk"))
     A(fig("d-fixture-form", "Adding a fixture.", "small"))
     A(fig("d-public-post", "The public page of an event, shareable to WhatsApp groups, with a Register button.", "desk"))
+    A(aside(dyk("<i>Publish and notify</i> writes one outbox row per member per channel. For 300 members on WhatsApp, SMS and app that is 900 rows, sent in the background while you carry on working."),
+            sticky("Publish news without notification for small updates; keep WhatsApp for things members must act on. Members notice the difference.", "green", "Keep WhatsApp precious")))
+    A(quest("Mission 6 · Publish", ["Create an event with registration open and a fee", "Publish and notify a small audience (one ward)", "Register a member for it and mark them attended"], 30))
     A(chapter(19, "Committees, meetings, minutes, actions and plans", "Governance without paper", "Part C · Office"))
     A(glance(["Committees hold members with designations; the executive committee's office bearers appear on the public website.", "A meeting has a notice, agenda, attendance, minutes (MoM) with decisions and resolution numbers, and action items.",
               "Plans are the year's programmes with owners, budgets and status."]))
@@ -354,9 +480,13 @@ def build():
              ("Action items", "assign to a member with a due date; they are reminded, and the dashboard counts overdue ones."),
              ("Plans", "the year's programmes with owner, budget, dates and progress; linked to the meetings that approved them.")]))
     A(fig("d-meeting-form", "Scheduling a meeting with its agenda.", "desk"))
-    A(fig("d-meeting", "A meeting page: status, agenda with decisions, attendance and action items.", "desk"))
+    A(pins("d-meeting", [(45, 11, "Edit · Notice · Minutes", "The meeting's tools, in the order you use them."), (58, 11, "Publish minutes", "Sends the minutes to the committee; the status pill turns green.", "l"), (50, 46, "Agenda & decisions", "One decision per item; resolutions get a running number."),
+                         (85, 67, "Attendance", "Mark present / absent / apology; the quorum pill reacts.", "l"), (70, 90, "Action items", "Who does what by when; the dashboard counts overdue ones.", "l")],
+           "A meeting page: status, agenda with decisions, attendance and action items."))
+    A(lens("d-meeting", 58, 11, 2.6, "Publish minutes to committee", "The one button that turns a draft into the official record: members of the committee are notified, the print view becomes available and action items start their reminders."))
     A(fig("d-actions", "Action items across all meetings, with owner, due date and status.", "desk"))
     A(fig("d-plans", "Plans: programmes, owners, budgets and progress.", "desk"))
+    A(quest("Mission 7 · A meeting end to end", ["Schedule a meeting with three agenda items and send the notice", "Mark attendance and write one decision per item", "Publish the minutes and assign one action item"], 40))
     A(chapter(20, "The library desk", "Catalogue, circulation, reading room, periodicals", "Part C · Office"))
     A(glance(["Books have an accession number each; copies are tracked separately.", "Issue, return and renew with the member's number or by scanning the e-card; fines are computed from Settings.",
               "The reading room register and the periodicals subscriptions live here too."]))
@@ -372,6 +502,8 @@ def build():
     A(fig("d-issue-form", "Issuing a book to a member.", "small"))
     A(fig("d-reading-room", "The reading room register.", "small"))
     A(fig("d-periodicals", "Newspapers and periodicals.", "small"))
+    A(sticky("Print the accession numbers as labels from the catalogue; the issue desk then scans books as fast as e-cards.", "blue", "Librarian's tip"))
+    A(quest("Mission 8 · The desk", ["Add a book with two copies", "Issue one copy to a member and return it after the due date to see the fine", "Record a reading-room visit by scanning an e-card"], 30))
     A(chapter(21, "Accounts, dues and payments", "Receipts, vouchers, UPI and online", "Part C · Office"))
     A(glance(["Every rupee in or out is a receipt or a voucher under a standard head (admission, subscription, donation, event fee, rent, salary…).", "Dues are computed from membership types and the subscription year; reminders go automatically.",
               "Members' UPI claims are confirmed by the treasurer; online payments through Razorpay settle themselves."]))
@@ -386,6 +518,7 @@ def build():
     A(fig("d-claims", "UPI claims waiting for confirmation.", "small"))
     A(fig("d-online", "Online payments received through Razorpay.", "small"))
     A(tip("Receipts cannot be deleted, only reversed with a voucher, so the cash book always matches what was messaged to members.", "warn"))
+    A(quest("Mission 9 · Money", ["Record a subscription receipt and find the message in the Outbox", "Send a dues reminder to one member", "Confirm a UPI claim"], 30))
     A(chapter(22, "Facilities, assets and documents", "Halls, grounds, equipment, papers", "Part C · Office"))
     A(fig("d-bookings", "Hall &amp; ground booking: the calendar, requests to confirm, rates per facility.", "desk"))
     A(fig("d-facility-form", "Adding a facility with its rate and rules.", "small"))
@@ -407,6 +540,8 @@ def build():
              ("Channels", "WhatsApp, SMS, e-mail, app; untick the costly ones for routine notes."), ("Send now or schedule", "a scheduled broadcast can be cancelled until it goes."),
              ("Outbox", "status per message; retry failed; see the provider's reference.")]))
     A(tip("SMS in Malayalam counts 70 characters per segment, so the automatic SMS texts are short; WhatsApp and e-mail carry the full text.", "note"))
+    A(aside(dyk("The outbox retries a failed message three times before marking it failed, and shows the provider's own error text so you can see whether a number was wrong or a template was rejected."),
+            sticky("Schedule the Sunday broadcast on Saturday night. The Outbox shows it as scheduled and you can still cancel it in the morning.", "pink", "Scheduling")))
     A(chapter(24, "Polls and elections", "One member, one vote", "Part C · Office"))
     A(fig("d-polls", "Polls &amp; elections for the office: open, closed, results.", "desk"))
     A(fig("d-poll-form", "Creating a poll: question, options (or candidates), who may vote, secret or open, closing time.", "desk"))
@@ -433,6 +568,8 @@ def build():
     A(fig("d-plan-upi", "Paying by UPI to the operator and sending the reference.", "desk"))
     A(table(["Active members", "Price per year"], [["up to 49", "₹2,500 flat"], ["50 to 99", "₹120 per member (₹6,000 – ₹11,880)"], ["100 and above", "₹120 per member"]]))
     A(tip("The price is worked out from the live member count on the day you pay, so a growing club simply pays a little more at its next renewal. Office bearers are reminded 7 days before the end.", "note"))
+    A(quest("Mission 10 · Keep the lights on", ["Open Subscription plan and note the end date", "Try Pay by UPI and read the reference form (cancel it)", "Set the support contact in your phone"], 20))
+    A(badges([("🏅", "Level 2 complete · Office bearer", "gold"), ("📣", "First broadcast", ""), ("📝", "Minutes published", "teal"), ("🧾", "First receipt", "pink")]))
     A(close())
 
     # ================= PART D =================
@@ -449,8 +586,11 @@ def build():
              ("Set the operator keys", "in /opt/club/.env: <code>CLUB_MASTER_KEY</code>, <code>CLUB_BASE_DOMAIN=clubpro.in</code>, <code>CLUBPRO_RZP_*</code>, and the server's SMS / WhatsApp / SMTP settings used for signup codes and as the default for clubs. Restart with <code>docker compose up -d</code>."),
              ("Open the console", "https://clubpro.in/_platform with the master key: set the product name, the footer credit, pricing, your UPI ID and support contact.")]))
     A(tip("Re-running the installer command updates the app in place. Data, uploads and .env are kept.", "tip"))
+    A(sticky("Keep .env out of git and out of WhatsApp. It holds every key. Back it up with the server, nowhere else.", "", "Operator's rule"))
     A(chapter(31, "The platform console", "Every club, every rupee", "Part D · Operator"))
-    A(fig("d-platform", "The console: subscriptions summary, per-club status and actions, the club list with sizes and backups, add a club, routing, pricing and the operator's UPI and support contact.", "desk"))
+    A(pins("d-platform", [(20, 6, "Master key", "Open the console with CLUB_MASTER_KEY from .env."), (50, 11, "Summary", "Clubs by status, run-rate, collected, claims to confirm."), (65, 19, "Per club", "Mark paid, extend trial, suspend / reopen, confirm claims.", "l"),
+                          (50, 33, "Clubs", "Sizes, domains, last backup, deactivate."), (50, 48, "Add a club", "For clubs you onboard yourself."), (50, 62, "Routing · pricing", "Default club's domains, product name, powered-by, prices, UPI, support.")],
+           "The console: subscriptions summary, per-club status and actions, the club list, add a club, routing, pricing and the operator's UPI and support contact."))
     A(steps([("Subscriptions", "clubs by status, yearly run-rate, amount collected, trials ending this week, UPI claims to confirm."),
              ("Per club", "Mark paid (amount and reference), Extend trial, Suspend / Reopen, Confirm or Reject a UPI claim."),
              ("Clubs", "members, applications, last backup; edit domains; deactivate / activate."),
@@ -462,6 +602,7 @@ def build():
     A(fig("m-signup", "The signup form on a phone: club, web address, secretary, mobile, password, consent.", "phone"))
     A(flow([("Fill the form", "/signup"), ("Code by SMS", "operator's channel"), ("Club created", "<slug>.clubpro.in"), ("Trial", "30 days"), ("Pays", "online or UPI")], accent=True))
     A(tip("Signup codes go through the server's SMS or WhatsApp channel. If none is configured the club is created without a code — fine for a trial server, not for the public.", "warn"))
+    A(dyk("A club that signs up at /signup is live in under a minute: its database is created, the first administrator is set, the default committees are seeded and the trial clock starts."))
     A(chapter(33, "Billing, reminders and suspension", "Trial → active → due → read-only", "Part D · Operator"))
     A(lifecycle_svg())
     A(steps([("Online", "the club pays through your Razorpay account from its Subscription plan screen; the plan is extended by a year at once; the webhook is the safety net if the browser closes."),
@@ -486,6 +627,8 @@ def build():
              ("Protections", "HttpOnly cookies, a header on every change (no cross-site actions), scrypt passwords, one-time codes that expire, rate limits on public endpoints, re-encoded uploads, security headers and a content policy on every page."),
              ("Updates", "re-run the installer; the schema upgrades itself; restart with docker compose."),
              ("Data requests", "a club's data is one folder; export or delete it as a unit when a club leaves.")]))
+    A(quest("Mission 11 · Operator", ["Create a club from the console and sign in to it", "Set pricing, UPI ID and support contact", "Sign a club up through /signup on your phone", "Mark a trial club paid and watch its status"], 40))
+    A(badges([("🛠️", "Level 3 complete · Operator", "gold"), ("☁️", "Server installed", "teal"), ("💳", "First subscription", "pink")]))
     A(close())
 
     # ================= PART E =================
@@ -535,14 +678,104 @@ def build():
            ("How do we get help?", "The support contact set by the operator appears under Subscription plan and in reminder messages. The short in-app handbook is under Help in the menu.")]
     A("<dl class='faq'>" + "".join(f"<dt>{q}</dt><dd>{a}</dd>" for q, a in faq) + "</dl>")
     A(close())
-    A(f"""<section class='back'><div class='brand'>ClubPro</div><p>Everything a club needs, under its own name.</p><p class='small'>Handbook version {VERSION} · Powered by Team Bpro</p></section>""")
+    A(close())
+    A(f"""<section class='full back'><div class='brand'>ClubPro</div><p style='font-size:13pt'>Everything a club needs, under its own name.</p>
+<p>Designed &amp; Developed by <b>{CREDIT_NAME}</b> ({CREDIT_QUALS})<br>{CREDIT_ORG}<br>{' | '.join(CREDIT_SITES)}</p><p class='small' style='color:#fff;opacity:.85'>Handbook version {VERSION} · {VERSION_DATE} · Powered by Team Bpro</p></section>""")
     A("</body></html>")
     with open(os.path.join(HERE, "handbook.html"), "w", encoding="utf-8") as f:
         f.write("\n".join(P))
     print("handbook.html written")
 
 
-if __name__ == "__main__":
+
+
+# ---------- second pass: page numbers for the contents; barcodes on every page ----------
+def find_pages(pdf_path):
+    """Chapter number -> printed page number, by reading the chapter heads back from the first render."""
+    import pdfplumber
+    import re as _re
+    pages = {}
+    with pdfplumber.open(pdf_path) as pdf:
+        for i, page in enumerate(pdf.pages, 1):
+            text = page.extract_text() or ""
+            m = _re.search(r"Chapter (\d+) of %d" % TOTAL_CH, text)
+            if m and int(m.group(1)) not in pages:
+                pages[int(m.group(1))] = i
+    return pages
+
+
+def barcode_overlay(n_pages, out_html):
+    """An HTML document with one A4 page per handbook page, carrying a Code128 barcode for that page at the foot."""
+    import barcode
+    from barcode.writer import SVGWriter
+    import re as _re
+    parts = ["<!doctype html><html><head><meta charset='utf-8'><style>@page{size:A4;margin:0}body{margin:0}.pg{width:210mm;height:297mm;position:relative;page-break-after:always}"
+             ".bc{position:absolute;right:16mm;bottom:7mm;width:34mm}.bc svg{width:100%;height:auto;display:block}</style></head><body>"]
+    for i in range(1, n_pages + 1):
+        code = f"CLUBPRO-HB-{VERSION}-P{i:03d}"
+        svg = barcode.get("code128", code, writer=SVGWriter()).render({"module_width": 0.2, "module_height": 6.0, "font_size": 5, "text_distance": 1.5, "quiet_zone": 1, "write_text": True}).decode()
+        svg = _re.sub(r"<\?xml[^>]*>|<!DOCTYPE[^>]*>", "", svg)
+        parts.append(f"<div class='pg'><div class='bc'>{svg}</div></div>")
+    parts.append("</body></html>")
+    with open(out_html, "w", encoding="utf-8") as f:
+        f.write("".join(parts))
+
+
+def stamp_barcodes(pdf_path, overlay_pdf, out_path):
+    from pypdf import PdfReader, PdfWriter
+    base, over = PdfReader(pdf_path), PdfReader(overlay_pdf)
+    w = PdfWriter()
+    for i, page in enumerate(base.pages):
+        if i < len(over.pages):
+            page.merge_page(over.pages[i])
+        w.add_page(page)
+    # the same screenshot is embedded once per use by Chromium; keep one copy per identical image stream
+    import hashlib
+    from pypdf.generic import NameObject
+    first = {}
+    for page in w.pages:
+        xo = (page.get("/Resources") or {}).get("/XObject")
+        if not xo:
+            continue
+        xo = xo.get_object()
+        for key in list(xo.keys()):
+            ref = xo.raw_get(key)
+            obj = ref.get_object()
+            if obj.get("/Subtype") != "/Image":
+                continue
+            h = hashlib.sha1(obj.get_data() if hasattr(obj, "get_data") else b"").hexdigest() + f"{obj.get('/Width')}x{obj.get('/Height')}{obj.get('/Filter')}"
+            if h in first:
+                xo[NameObject(key)] = first[h]
+            else:
+                first[h] = ref
+    w.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+    w.add_metadata({"/Title": f"ClubPro User Manual & Handbook v{VERSION}", "/Author": f"{CREDIT_NAME}, {CREDIT_ORG}", "/Subject": "ClubPro: club, library and reading-room management", "/Creator": "ClubPro handbook builder"})
+    with open(out_path, "wb") as f:
+        w.write(f)
+
+
+def full_build():
+    render = os.path.join(HERE, "render.js")
+    pdf = os.path.join(HERE, "ClubPro-Handbook.pdf")
     build()
+    subprocess.run(["node", render], check=True)                      # pass 1: layout without page numbers
+    PAGES.update(find_pages(pdf))
+    build()
+    subprocess.run(["node", render], check=True)                      # pass 2: contents with page numbers
+    from pypdf import PdfReader
+    n = len(PdfReader(pdf).pages)
+    overlay_html = os.path.join(HERE, "_barcodes.html")
+    overlay_pdf = os.path.join(HERE, "_barcodes.pdf")
+    barcode_overlay(n, overlay_html)
+    subprocess.run(["node", render, overlay_html, overlay_pdf, "plain"], check=True)
+    stamp_barcodes(pdf, overlay_pdf, pdf)
+    for f in (overlay_html, overlay_pdf):
+        os.remove(f)
+    print(f"{n} pages, contents mapped for {len(PAGES)} chapters, barcodes stamped")
+
+
+if __name__ == "__main__":
     if os.environ.get("RENDER", "1") == "1":
-        subprocess.run(["node", os.path.join(HERE, "render.js")], check=True)
+        full_build()
+    else:
+        build()
