@@ -55,6 +55,19 @@ Open http://127.0.0.1:8810 - the first administrator is created from `.env` when
 With Docker: `docker compose up -d --build` (data in `./data`, port 8810 on localhost; put Caddy or nginx with HTTPS in
 front - see `deploy/site.caddy`). Nightly backup: `deploy/backup.sh ./data ./backups`.
 
+### On a VPS (Hostinger KVM, or any Ubuntu / Debian server)
+
+The app is Python, so it needs a VPS rather than shared / Business / Cloud web hosting (those run static, PHP,
+Node.js and WordPress only). Point the domain's A record at the server, then on the server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/BABUKOLLAM/bpro-club-manager/main/deploy/vps-install.sh | sudo bash -s -- club.example.org admin@example.org
+```
+
+`deploy/vps-install.sh` installs Docker and Caddy, clones the repository to `/opt/club`, writes `.env` with the
+first administrator (the password is printed once), starts the app behind Caddy with automatic HTTPS, opens the
+firewall for SSH / 80 / 443 and schedules a nightly backup. Re-run the same command to update.
+
 Tests: `.venv/bin/python -m pytest -q tests`. The suite runs the whole flow (registration → approval → number,
 publishing with push, members-only minutes, circulation with fines, accounts, broadcasts, daily jobs) against a
 throwaway database with a fake message transport.
