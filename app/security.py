@@ -17,6 +17,10 @@ LIMITS = {
     "/api/public/photo": (10, 3600),
     "/api/finance/claims": (20, 3600),
     "/api/payments/order": (30, 3600),
+    "/api/saas/signup/start": (5, 3600),
+    "/api/saas/signup/verify": (10, 600),
+    "/api/saas/pay/order": (10, 3600),
+    "/api/saas/pay/claim": (10, 3600),
 }
 _hits = {}
 _lock = threading.Lock()

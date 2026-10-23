@@ -1029,3 +1029,114 @@ def test_white_label_brand_and_own_channels(admin):
         anon.post("/api/_platform/settings", json={"product_name": "", "powered_by": ""}, headers=MK)
     finally:
         os.environ.pop("CLUB_MASTER_KEY", None)
+
+
+def test_saas_signup_pricing_billing_and_suspension(admin):
+    import time as _time
+    from app import saas, tenancy
+    anon = TestClient(app)
+    # pricing rule: flat up to 49, then per member
+    assert saas.price_for(0) == 2500 and saas.price_for(49) == 2500 and saas.price_for(50) == 6000 and saas.price_for(99) == 11880 and saas.price_for(150) == 18000
+    assert saas.product()["name"] == "ClubPro" and "Team Bpro" in saas.product()["powered_by"]
+    # public pages work on any host, in both languages, and list the services and the price
+    for host in ("http://testserver", "http://nobody.test"):
+        c = TestClient(app, base_url=host)
+        pr = c.get("/pricing?lang=en").text
+        assert "₹2,500" in pr and "Up to 49 members" in pr and "Library &amp; reading room" in pr and "Facilities &amp; rentals" in pr and "Powered by Team Bpro" in pr
+        assert "ലൈബ്രറിയും വായനശാലയും" in c.get("/pricing?lang=ml").text
+        assert "Start your club on ClubPro" in c.get("/signup?lang=en").text
+    # self-serve signup with a one-time code through the operator's SMS channel
+    os.environ["CLUB_SMS_URL"] = "https://sms.test/?to={to}&text={text}"
+    os.environ["CLUB_BASE_DOMAIN"] = "clubs.test"
+    try:
+        fresh()
+        bad = anon.post("/api/saas/signup/start", json={"club_name_en": "Pala Arts Club", "phone": "123", "password": "x", "agree": True}, headers=H)
+        assert bad.status_code == 400
+        r = anon.post("/api/saas/signup/start", json={"club_name_en": "Pala Arts Club", "club_name_ml": "പാലാ ആർട്സ് ക്ലബ്ബ്", "place": "Pala", "short": "PAC", "admin_name": "Jose", "phone": "9847099999",
+                                                       "email": "jose@pala.test", "password": "pala-pass-1", "lang": "ml", "agree": True}, headers=H)
+        assert r.status_code == 200, r.text
+        assert r.json()["slug"] == "pala-arts-club" and r.json()["channel"] == "sms"
+        sms = [x for x in SENT if x[0] == "sms" and x[1] == "9847099999"]
+        assert sms and "ClubPro" in sms[-1][3]
+        code = re.search(r"(\d{6})", sms[-1][3]).group(1)
+        ticket = r.json()["ticket"]
+        assert anon.post("/api/saas/signup/verify", json={"ticket": ticket, "code": "000000"}, headers=H).status_code == 400
+        r = anon.post("/api/saas/signup/verify", json={"ticket": ticket, "code": code}, headers=H)
+        assert r.status_code == 200, r.text
+        assert r.json()["url"] == "https://pala-arts-club.clubs.test" and r.json()["login"] == "jose@pala.test" and r.json()["trial_days"] == 30
+        # the same address cannot be taken twice
+        assert anon.post("/api/saas/signup/start", json={"club_name_en": "Pala Arts Club", "phone": "9847099998", "password": "pala-pass-1", "agree": True}, headers=H).status_code == 400
+    finally:
+        os.environ.pop("CLUB_SMS_URL", None)
+        os.environ.pop("CLUB_BASE_DOMAIN", None)
+    # the new club: trial, its own admin, Malayalam, footer credit, plan visible in public info and on the plan screen
+    pc = TestClient(app, base_url="http://pala-arts-club.clubs.test")
+    info = pc.get("/api/public/info").json()
+    assert info["club_short"] == "PAC" and info["default_lang"] == "ml" and info["footer_credit"] == "Powered by Team Bpro"
+    assert info["plan"]["status"] == "trial" and 28 <= info["plan"]["days_left"] <= 30 and info["plan"]["read_only"] is False and info["plan"]["product"] == "ClubPro"
+    assert pc.post("/api/auth/login", json={"login": "jose@pala.test", "password": "pala-pass-1"}, headers=H).status_code == 200
+    plan = pc.get("/api/saas/plan").json()
+    assert plan["status"] == "trial" and plan["members"] == 0 and plan["price"] == 2500 and plan["gateway"] is False and plan["pricing"]["per_member"] == 120
+    # the operator's own club pays nothing
+    assert admin.get("/api/saas/plan").json()["exempt"] is True and anon.get("/api/public/info").json()["plan"]["exempt"] is True
+    # UPI claim -> the operator confirms it on the console -> paid for a year
+    os.environ["CLUB_MASTER_KEY"] = "master-key-1"
+    try:
+        MK = {"X-Master-Key": "master-key-1"}
+        assert anon.post("/api/_platform/settings", json={"pricing": {"upi_id": "teambpro@upi", "upi_name": "Team Bpro", "support": "WhatsApp 98470 00000"}}, headers=MK).status_code == 200
+        assert anon.post("/api/_platform/settings", json={"pricing": {"flat_price": "abc"}}, headers=MK).status_code == 400
+        assert pc.get("/api/saas/plan").json()["upi_id"] == "teambpro@upi"
+        assert pc.post("/api/saas/pay/claim", json={"ref": ""}, headers=H).status_code == 400
+        assert pc.post("/api/saas/pay/claim", json={"ref": "UTR123456789012"}, headers=H).status_code == 200
+        bill = anon.get("/api/_platform/billing", headers=MK).json()
+        assert bill["summary"]["claims"] == 1 and bill["summary"]["by_status"]["trial"] >= 1
+        row = next(r for r in bill["rows"] if r["slug"] == "pala-arts-club")
+        assert row["claims"][0]["ref"] == "UTR123456789012" and row["contact"]["phone"] == "9847099999"
+        r = anon.post("/api/_platform/tenants/pala-arts-club/plan", json={"action": "approve_claim", "ref": "UTR123456789012"}, headers=MK)
+        assert r.status_code == 200 and r.json()["view"]["status"] == "active" and 360 <= r.json()["view"]["days_left"] <= 366
+        plan = pc.get("/api/saas/plan").json()
+        assert plan["status"] == "active" and plan["payments"][-1]["via"] == "upi" and plan["payments"][-1]["amount"] == 2500
+        # online payment through the operator's Razorpay with a fake gateway: order -> verify -> another year
+        saas.set_order_creator(lambda amt, receipt, notes: {"id": "order_op_1", "amount": amt})
+        try:
+            o = pc.post("/api/saas/pay/order", json={}, headers=H).json()
+            assert o["amount"] == 2500 and o["order_id"] == "order_op_1" and "ClubPro" in o["description"]
+            assert pc.post("/api/saas/pay/verify", json={"razorpay_order_id": "wrong"}, headers=H).status_code == 404
+            r = pc.post("/api/saas/pay/verify", json={"razorpay_order_id": "order_op_1", "razorpay_payment_id": "pay_1", "razorpay_signature": "x"}, headers=H)
+            assert r.status_code == 200 and 725 <= r.json()["plan"]["days_left"] <= 731
+            assert len(pc.get("/api/saas/plan").json()["payments"]) == 2
+        finally:
+            saas.set_order_creator(None)
+        # the operator's own club must not be able to pay a subscription
+        assert admin.post("/api/saas/pay/order", json={}, headers=H).status_code == 400
+        # expiry: past the grace period the club is read-only (reads and sign-in work, writes get 402), then reopened by paying
+        reg = tenancy.registry(); reg["tenants"]["pala-arts-club"]["plan"]["paid_until"] = _time.time() - 20 * 86400; tenancy.save_registry(reg)
+        assert pc.get("/api/public/info").json()["plan"]["status"] == "suspended"
+        assert pc.get("/api/members", headers=H).status_code == 200
+        r = pc.post("/api/settings", json={"club_phone": "1"}, headers=H)
+        assert r.status_code == 402 and r.json()["read_only"] is True
+        assert pc.post("/api/auth/logout", headers=H).status_code == 200
+        assert pc.post("/api/auth/login", json={"login": "jose@pala.test", "password": "pala-pass-1"}, headers=H).status_code == 200
+        # the daily job records the state and reminds the office bearers (app + e-mail to the admin)
+        fresh()
+        out = saas.daily()
+        assert out["changed"] >= 1 and out["reminded"] >= 1
+        assert tenancy.tenants()["pala-arts-club"]["plan"]["status"] == "suspended"
+        with tenancy.use("pala-arts-club"):
+            ob = db.q("SELECT channel, subject FROM outbox WHERE template='saas_suspended'")
+        assert not ob  # the admin user has no member record yet, so nothing could be addressed; no crash either
+        # within the grace window the club is only "overdue": still writable
+        reg = tenancy.registry(); reg["tenants"]["pala-arts-club"]["plan"]["paid_until"] = _time.time() - 5 * 86400; reg["tenants"]["pala-arts-club"]["plan"]["status"] = "active"; tenancy.save_registry(reg)
+        assert pc.get("/api/public/info").json()["plan"]["status"] == "overdue"
+        assert pc.post("/api/settings", json={"club_phone": "9847000001"}, headers=H).status_code == 200
+        # operator actions: suspend, reopen, mark paid, extend trial
+        assert anon.post("/api/_platform/tenants/pala-arts-club/plan", json={"action": "suspended"}, headers=MK).json()["view"]["status"] == "suspended"
+        assert pc.post("/api/settings", json={"club_phone": "1"}, headers=H).status_code == 402
+        assert anon.post("/api/_platform/tenants/pala-arts-club/plan", json={"action": "reactivate"}, headers=MK).json()["view"]["status"] in ("trial", "active", "overdue")
+        assert pc.post("/api/settings", json={"club_phone": "9847000001"}, headers=H).status_code == 200
+        v = anon.post("/api/_platform/tenants/pala-arts-club/plan", json={"action": "mark_paid", "amount": 2500, "ref": "RCPT-7"}, headers=MK).json()["view"]
+        assert v["status"] == "active" and v["payments"][-1]["ref"] == "RCPT-7"
+        assert anon.post("/api/_platform/tenants/nobody/plan", json={"action": "mark_paid"}, headers=MK).status_code == 400
+        assert anon.post("/api/_platform/tenants/pala-arts-club/plan", json={"action": "extend_trial", "days": 10}, headers=MK).status_code == 200
+    finally:
+        os.environ.pop("CLUB_MASTER_KEY", None)

@@ -82,6 +82,22 @@ TEMPLATES = {
         "en": ("Happy birthday", "Dear {name}, warm birthday wishes from all of us at {club}!"),
         "ml": ("ജന്മദിനാശംസകൾ", "പ്രിയ {name}, {club} -ലെ ഞങ്ങളുടെ എല്ലാവരുടെയും ഹൃദയം നിറഞ്ഞ ജന്മദിനാശംസകൾ!"),
     },
+    "saas_ending": {
+        "en": ("{product}: subscription ends in {days} days", "Your club's {product} subscription ends in {days} days. {members} active members · ₹{price} for the next year. "
+               "Pay online or by UPI at {link} to keep everything running. {support}"),
+        "ml": ("{product}: സബ്സ്ക്രിപ്ഷൻ {days} ദിവസത്തിനുള്ളിൽ അവസാനിക്കും", "നിങ്ങളുടെ ക്ലബ്ബിന്റെ {product} സബ്സ്ക്രിപ്ഷൻ {days} ദിവസത്തിനുള്ളിൽ അവസാനിക്കും. "
+               "{members} സജീവ അംഗങ്ങൾ · അടുത്ത വർഷത്തേക്ക് ₹{price}. {link} -ൽ ഓൺലൈനായോ UPI വഴിയോ അടയ്ക്കുക. {support}"),
+    },
+    "saas_overdue": {
+        "en": ("{product}: payment due", "Your club's {product} subscription has ended. Pay ₹{price} within {grace} days at {link}; after that the club becomes read-only until paid. {support}"),
+        "ml": ("{product}: പണമടയ്ക്കാനുണ്ട്", "നിങ്ങളുടെ ക്ലബ്ബിന്റെ {product} സബ്സ്ക്രിപ്ഷൻ അവസാനിച്ചു. {grace} ദിവസത്തിനുള്ളിൽ {link} -ൽ ₹{price} അടയ്ക്കുക; "
+               "അതിനുശേഷം പണമടയ്ക്കുന്നതുവരെ ക്ലബ്ബ് വായിക്കാൻ മാത്രമാകും. {support}"),
+    },
+    "saas_suspended": {
+        "en": ("{product}: club is read-only", "Your club's {product} subscription is unpaid, so the club is now read-only. Nothing is deleted. Pay ₹{price} at {link} to reopen it. {support}"),
+        "ml": ("{product}: ക്ലബ്ബ് വായിക്കാൻ മാത്രം", "നിങ്ങളുടെ ക്ലബ്ബിന്റെ {product} സബ്സ്ക്രിപ്ഷൻ അടച്ചിട്ടില്ലാത്തതിനാൽ ക്ലബ്ബ് ഇപ്പോൾ വായിക്കാൻ മാത്രം. ഒന്നും നഷ്ടപ്പെട്ടിട്ടില്ല. "
+               "{link} -ൽ ₹{price} അടച്ചാൽ വീണ്ടും തുറക്കും. {support}"),
+    },
     "broadcast": {
         "en": ("{subject}", "{body}"),
         "ml": ("{subject}", "{body}"),

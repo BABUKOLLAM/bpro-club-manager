@@ -1,7 +1,7 @@
 // App shell is cached for instant start and an offline page; API calls always go to the network.
-const V = 'club-v2';
+const V = 'club-v3';
 const SHELL = ['/', '/static/styles.css?v=1', '/static/i18n.js?v=1', '/static/app.js?v=1', '/static/card.js?v=1', '/static/members.js?v=1', '/static/posts.js?v=1', '/static/meetings.js?v=1',
-  '/static/library.js?v=1', '/static/finance.js?v=1', '/static/admin.js?v=1', '/static/extras.js?v=1', '/static/polls.js?v=1', '/static/offline.html', '/static/icons/icon.svg', '/brand/icon-192.png'];
+  '/static/library.js?v=1', '/static/finance.js?v=1', '/static/admin.js?v=1', '/static/extras.js?v=1', '/static/polls.js?v=1', '/static/saas.js?v=1', '/static/offline.html', '/static/icons/icon.svg', '/brand/icon-192.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(V).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

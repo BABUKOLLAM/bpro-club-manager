@@ -69,7 +69,16 @@ def start():
         return
 
     def run():
+        last_saas = ""
         while True:
+            today = dt.date.today().isoformat()
+            if last_saas != today:
+                try:
+                    from . import saas
+                    saas.daily()
+                    last_saas = today
+                except Exception:  # noqa: BLE001
+                    log.exception("plan daily job")
             for slug in tenancy.all_slugs():
                 try:
                     with tenancy.use(slug):

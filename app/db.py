@@ -237,6 +237,14 @@ def connect():
 _local = threading.local()      # one connection per thread and per club: sqlite3 connections must not be shared
 _all = []
 _initialized = set()
+_generation = {}   # slug -> bumped by forget(); a thread holding an older connection reconnects
+
+
+def forget(s):
+    """Drop every cached connection to a club's database (used when a club is created afresh on disk)."""
+    with _locks_guard:
+        _generation[s] = _generation.get(s, 0) + 1
+    _initialized.discard(s)
 
 
 def conn():
@@ -244,13 +252,22 @@ def conn():
     if conns is None:
         conns = _local.conns = {}
     s = slug()
-    c = conns.get(s)
-    if c is None:
+    gen = _generation.get(s, 0)
+    entry = conns.get(s)
+    if entry is not None and entry[0] != gen:
+        try:
+            entry[1].close()
+        except Exception:  # noqa: BLE001
+            pass
+        entry = None
+    if entry is None:
         if s not in _initialized:
             init()
-        c = conns[s] = connect()
+        c = connect()
+        conns[s] = (gen, c)
         _all.append(c)
-    return c
+        return c
+    return entry[1]
 
 
 def init():
