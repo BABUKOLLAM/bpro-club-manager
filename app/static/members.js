@@ -23,11 +23,25 @@ async function viewMembers({ query }) {
     <select class="in" name="mtype" style="max-width:180px"><option value="">${t('membership_type')}</option>${types.map(([v, l]) => `<option value="${v}" ${query.mtype === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>
     ${info.wards.length ? `<select class="in" name="ward" style="max-width:120px"><option value="">${t('ward')}</option>${info.wards.map(w => `<option ${query.ward === w ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select>` : ''}
     <select class="in" name="blood" style="max-width:120px"><option value="">${t('blood_group')}</option>${info.blood_groups.map(b => `<option ${query.blood === b ? 'selected' : ''}>${b}</option>`).join('')}</select><button class="btn" onclick="A.filterMembers()">${t('filter')}</button></form>`;
-  render(page(t('members'), `${rows.length} ${t('count').toLowerCase()}`, `${can('members.manage') ? `<button class="btn" onclick="memberForm(null,true)">+ ${t('office_entry')}</button>` : ''}<a class="btn ghost" href="/api/members/export/csv">${t('export_csv')}</a><a class="btn ghost" href="/api/members/export/family.csv">${t('family')} CSV</a>`,
+  render(page(t('members'), `${rows.length} ${t('count').toLowerCase()}`, `${can('members.manage') ? `<button class="btn" onclick="memberForm(null,true)">+ ${t('office_entry')}</button><button class="btn ghost" onclick="A.importSheet()">${t('import_members')}</button>` : ''}<button class="btn ghost" onclick="A.printCards()">${t('print_cards')}</button><a class="btn ghost" href="/api/members/export/csv">${t('export_csv')}</a><a class="btn ghost" href="/api/members/export/family.csv">${t('family')} CSV</a>`,
     filt + `<div class="card">${tbl([{ h: t('member_no'), f: r => `<span class="num">${esc(r.member_no || '-')}</span>` }, { h: t('name'), f: r => `<div class="row" style="gap:8px">${avatar(r)}<div><b>${esc(nameOf(r))}</b><div class="small muted">${esc(bil(r, 'house'))}${r.ward ? ' · ' + t('ward') + ' ' + esc(r.ward) : ''}</div></div></div>` },
       { h: t('phone'), f: r => `<span class="num">${esc(r.phone)}</span>${r.wa_link ? ` <a class="pill ok" target="_blank" href="${esc(r.wa_link)}" onclick="event.stopPropagation()">WA</a>` : ''}` }, { h: t('membership_type'), f: r => esc(t(r.membership_type)) }, { h: t('blood_group'), f: r => esc(r.blood_group) }, { h: t('family_count'), num: true, f: r => r.family_count },
       { h: t('dues'), num: true, f: r => r.dues ? `<span class="pill warn">${money(r.dues)}</span>` : '' }, { h: t('status'), f: r => statusPill(r.status) }], rows, r => `class="click" onclick="nav('#/members/${r.id}')"`)}</div>`));
 }
+A.importSheet = () => {
+  sheet(`<p class="small muted">${t('import_intro')}</p><div class="actions" style="margin-top:0"><a class="btn ghost" href="/api/members/import/template.xlsx">${t('download_template')}</a><label class="btn">${t('choose_file')}<input type="file" accept=".xlsx" hidden onchange="A.importPreview(this.files[0])"></label></div><div id="imp-out"></div>`, t('import_members'));
+};
+async function importPost(file, commit) { const fd = new FormData(); fd.append('file', file); return api('POST', `/api/members/import?commit=${commit}`, fd); }
+A.importPreview = async file => {
+  if (!file) return; S._importFile = file; const out = document.getElementById('imp-out'); out.innerHTML = `<div class="empty">${t('loading')}</div>`;
+  const r = await importPost(file, 0);
+  const rowsHtml = (rows) => rows.length ? `<div class="tbl-wrap"><table class="tbl"><tr><th>${t('row')}</th><th>${t('member_no')}</th><th>${t('name')}</th><th>${t('errors')}</th></tr>${rows.map(x => `<tr><td>${x.row}</td><td>${esc(x.member_no || '')}</td><td>${esc(x.name_en)}</td><td>${x.errors.length ? `<span class="pill bad">${esc(x.errors.join('; '))}</span>` : '<span class="pill ok">✓</span>'}</td></tr>`).join('')}</table></div>` : '';
+  out.innerHTML = `<div class="row" style="margin:10px 0"><span class="pill ok">${t('valid_rows')}: ${r.valid}</span><span class="pill ${r.invalid ? 'bad' : ''}">${t('invalid_rows')}: ${r.invalid}</span><span class="pill">${t('family')}: ${r.family_valid}</span></div>${rowsHtml(r.members)}${r.family.length ? `<h3 style="margin-top:10px">${t('family')}</h3>${rowsHtml(r.family)}` : ''}
+    <div class="actions">${r.valid ? `<button class="btn accent" onclick="A.importCommit()">${t('import_now', { n: r.valid })}</button>` : ''}</div>`;
+};
+A.importCommit = async () => { const r = await importPost(S._importFile, 1); closeSheet(); S.membersCache = null; toast(`${t('imported')}: ${r.created} + ${r.family_created} ${t('family').toLowerCase()}`, 'ok'); nav('#/members'); };
+A.printCards = () => { const info = S.info; formSheet(t('print_cards'), `<p class="full small muted">${t('cards_hint')}</p>${F.select('mtype', t('membership_type'), '', info.membership_types.map(x => [x.key, S.lang === 'ml' ? x.ml : x.en]), { blank: t('all') })}${info.wards.length ? F.select('ward', t('ward'), '', info.wards.map(w => [w, w]), { blank: t('all') }) : F.text('ward', t('ward'))}${F.select('lang', t('language'), S.lang, [['ml', 'മലയാളം'], ['en', 'English']], { blank: false })}`,
+  async b => { window.open('/api/members/print/cards?' + new URLSearchParams(Object.fromEntries(Object.entries(b).filter(([k, v]) => v))), '_blank'); closeSheet(); }, { saveLabel: t('print') }); };
 A.filterMembers = () => { const b = readForm(document.getElementById('mf')); nav('#/members?' + new URLSearchParams(Object.fromEntries(Object.entries(b).filter(([k, v]) => v))).toString()); };
 
 async function viewMember({ id, tab }) {
@@ -66,9 +80,9 @@ async function viewBroadcast() {
     ${F.select('kind', t('audience'), 'all', [['all', t('audience_all')], ['ward', t('audience_ward')], ['type', t('audience_type')], ['committee', t('audience_committee')], ['post', t('audience_post')], ['blood', t('audience_blood')], ['dues', t('audience_dues')], ['members', t('audience_members')]], { blank: false, attrs: 'onchange="A.bcKind(this.value)"' })}
     <div id="bc-val">${F.text('value', '—', '', { attrs: 'disabled' })}</div>
     <div class="full"><span class="small muted">${t('channels')}</span><div class="chks">${chk('app', t('in_app'))}${chk('whatsapp', 'WhatsApp')}${chk('sms', 'SMS')}${chk('email', t('email'))}</div></div>
-    ${F.text('subject', t('subject'), '', { full: true })}${F.area('body_en', t('message_en'), '', { full: false })}${F.area('body_ml', t('message_ml'), '', { full: false })}
-    <div class="full actions"><button class="btn ghost" onclick="A.bcPreview()">${t('recipients')}: <span id="bc-n">?</span></button><button class="btn accent" onclick="A.bcSend()">${t('send')}</button></div></form></div>
-    <div class="card"><h2>${t('previous_broadcasts')}</h2>${hist.length ? tbl([{ h: t('date'), f: r => esc(fmtTs(r.created)) }, { h: t('subject'), f: r => `<b>${esc(r.subject)}</b><div class="small muted">${esc((r.body_ml || r.body_en).slice(0, 90))}</div>` }, { h: t('channels'), f: r => esc(r.channels) }, { h: t('recipients'), num: true, f: r => r.recipients }, { h: t('status'), f: r => Object.entries(r.delivery).map(([k, v]) => `${statusPill(k)} ${v}`).join(' ') }], hist) : empty()}</div>`));
+    ${F.text('subject', t('subject'), '', { full: true })}${F.area('body_en', t('message_en'), '', { full: false })}${F.area('body_ml', t('message_ml'), '', { full: false })}${F.dt('send_at', t('send_at'))}
+    <div class="full actions"><button class="btn ghost" onclick="A.bcPreview()">${t('recipients')}: <span id="bc-n">?</span></button><button class="btn accent" onclick="A.bcSend()">${t('send')}</button><button class="btn ghost" onclick="A.bloodRequest()">🩸 ${t('blood_request')}</button></div></form></div>
+    <div class="card"><h2>${t('previous_broadcasts')}</h2>${hist.length ? tbl([{ h: t('date'), f: r => esc(fmtTs(r.created)) }, { h: t('subject'), f: r => `<b>${esc(r.subject)}</b><div class="small muted">${esc((r.body_ml || r.body_en).slice(0, 90))}</div>` }, { h: t('channels'), f: r => esc(r.channels) }, { h: t('recipients'), num: true, f: r => r.recipients }, { h: t('status'), f: r => `${r.send_at ? `<span class="pill brand">${t('scheduled_label')} ${esc(fmtTs(r.send_at))}</span> ` : ''}${Object.entries(r.delivery).map(([k, v]) => `${statusPill(k)} ${v}`).join(' ')}${r.send_at && r.delivery.pending ? ` <button class="btn ghost sm" onclick="A.bcCancel(${r.id})">${t('cancel_scheduled')}</button>` : ''}` }], hist) : empty()}</div>`));
   S._bc = { coms, posts };
 }
 A.bcKind = k => {
@@ -80,7 +94,17 @@ A.bcKind = k => {
   else el.innerHTML = F.text('value', '—', '', { attrs: 'disabled' });
 };
 A.bcAddMember = inp => { const id = memberIdFromLabel(inp.value); if (id) { const ta = document.querySelector('#bc-val textarea'); ta.value = (ta.value ? ta.value + ',' : '') + id; inp.value = ''; } };
-function bcBody() { const b = readForm(document.getElementById('bf')); const aud = { kind: b.kind, value: b.kind === 'members' ? String(b.value || '').split(',').filter(Boolean) : b.value }; const channels = ['app', 'whatsapp', 'sms', 'email'].filter(c => b['ch_' + c]); return { audience: aud, channels, subject: b.subject, body_en: b.body_en, body_ml: b.body_ml }; }
+function bcBody() { const b = readForm(document.getElementById('bf')); const aud = { kind: b.kind, value: b.kind === 'members' ? String(b.value || '').split(',').filter(Boolean) : b.value }; const channels = ['app', 'whatsapp', 'sms', 'email'].filter(c => b['ch_' + c]); return { audience: aud, channels, subject: b.subject, body_en: b.body_en, body_ml: b.body_ml, send_at: b.send_at || null }; }
+A.bcCancel = async id => { if (await confirmDlg(t('confirm'))) { await post(`/api/broadcasts/${id}/cancel`); viewBroadcast(); } };
+A.bloodRequest = () => formSheet(t('blood_request'), `${F.select('blood', t('blood_group'), '', S.info.blood_groups.map(b => [b, b]), { req: true, blank: false })}${F.text('patient', t('patient'), '', { req: true })}${F.text('hospital', t('hospital'), '', { req: true })}${F.text('contact', t('contact'), '', { req: true, type: 'tel' })}${F.text('detail', t('detail'))}`,
+  async b => {
+    const f = document.getElementById('bf'); f.querySelector('[name=kind]').value = 'blood'; A.bcKind('blood'); f.querySelector('[name=value]').value = b.blood;
+    f.querySelector('[name=subject]').value = `${b.blood} blood needed · ${b.blood} രക്തം ആവശ്യമുണ്ട്`;
+    f.querySelector('[name=body_en]').value = `URGENT: ${b.blood} blood is needed for ${b.patient} at ${b.hospital}. ${b.detail || ''} Please contact ${b.contact}.`.replace(/\s+/g, ' ');
+    f.querySelector('[name=body_ml]').value = `അടിയന്തരം: ${b.hospital}-ൽ ${b.patient}-ന് ${b.blood} രക്തം ആവശ്യമുണ്ട്. ${b.detail || ''} ദയവായി ${b.contact}-ൽ ബന്ധപ്പെടുക.`.replace(/\s+/g, ' ');
+    ['app', 'whatsapp', 'sms'].forEach(c => { const el = f.querySelector(`[name=ch_${c}]`); if (el) el.checked = true; });
+    closeSheet(); A.bcPreview();
+  }, { saveLabel: t('preview') });
 A.bcPreview = async () => { const r = await post('/api/broadcast/preview', bcBody()); document.getElementById('bc-n').textContent = r.recipients; };
 A.bcSend = async () => { const b = bcBody(); const n = (await post('/api/broadcast/preview', b)).recipients; if (!(await confirmDlg(`${t('send')} → ${n} ${t('recipients').toLowerCase()}?`))) return; const r = await post('/api/broadcast', b); toast(`${t('sent')}: ${r.queued}`, 'ok'); viewBroadcast(); };
 

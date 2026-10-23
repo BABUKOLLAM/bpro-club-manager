@@ -43,6 +43,10 @@ def hash_pw(pw, salt=None):
     return f"scrypt${salt.hex()}${h.hex()}"
 
 
+def hash_token(s):
+    return hashlib.sha256(s.encode()).hexdigest()
+
+
 def check_pw(pw, stored):
     try:
         _, salt, h = stored.split("$")

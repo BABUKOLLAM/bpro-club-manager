@@ -31,7 +31,7 @@ from email.message import EmailMessage
 from . import db, i18n
 
 log = logging.getLogger("club.comms")
-CHANNELS = ("whatsapp", "sms", "email", "app")
+CHANNELS = ("whatsapp", "sms", "email", "app", "push")
 
 # Tests and local runs can plug in a fake transport: sender(channel, to, subject, body) -> provider_id
 _override_sender = None
@@ -48,6 +48,7 @@ def configured():
         "sms": bool(os.environ.get("CLUB_SMS_URL")),
         "email": bool(os.environ.get("CLUB_SMTP_HOST") and os.environ.get("CLUB_SMTP_FROM")),
         "app": True,
+        "push": True,
     }
 
 
@@ -86,17 +87,22 @@ def _ctx_for(lang, ctx):
     return base
 
 
-def queue(c, channel, to_addr, subject, body, *, lang="en", member_id=None, template="", ref_kind="", ref_id=None, batch_id="", created_by=None):
+def queue(c, channel, to_addr, subject, body, *, lang="en", member_id=None, template="", ref_kind="", ref_id=None, batch_id="", created_by=None, not_before=None):
     if channel == "app":
         if not member_id:
             return None
-        return db.insert(c, "notifications", {"member_id": member_id, "created": time.time(), "title": subject[:200], "body": body,
-                                              "link": ref_link(ref_kind, ref_id), "ref_kind": ref_kind, "ref_id": ref_id})
+        nid = db.insert(c, "notifications", {"member_id": member_id, "created": time.time(), "title": subject[:200], "body": body,
+                                             "link": ref_link(ref_kind, ref_id), "ref_kind": ref_kind, "ref_id": ref_id})
+        # the same notification goes to the member's phone / browser by Web Push, when they have allowed it
+        for sub in db.q("SELECT id FROM push_subs WHERE member_id=? AND failures<5", (member_id,)):
+            db.insert(c, "outbox", {"created": time.time(), "channel": "push", "to_addr": f"sub:{sub['id']}", "subject": subject[:200], "body": body[:1000], "lang": lang, "status": "pending",
+                                    "member_id": member_id, "template": template, "ref_kind": ref_kind, "ref_id": ref_id, "batch_id": batch_id, "created_by": created_by, "not_before": not_before})
+        return nid
     if not to_addr:
         return None
     return db.insert(c, "outbox", {"created": time.time(), "channel": channel, "to_addr": to_addr, "subject": subject, "body": body, "lang": lang,
                                    "status": "pending", "member_id": member_id, "template": template, "ref_kind": ref_kind, "ref_id": ref_id,
-                                   "batch_id": batch_id, "created_by": created_by})
+                                   "batch_id": batch_id, "created_by": created_by, "not_before": not_before})
 
 
 def ref_link(ref_kind, ref_id):
@@ -121,7 +127,7 @@ def member_channels(m, requested):
     return out
 
 
-def notify_members(c, member_ids, template, ctx, channels=("app", "whatsapp"), *, ref_kind="", ref_id=None, batch_id="", created_by=None, per_member=None):
+def notify_members(c, member_ids, template, ctx, channels=("app", "whatsapp"), *, ref_kind="", ref_id=None, batch_id="", created_by=None, per_member=None, not_before=None):
     """Queue `template` for each member on each channel they accept. per_member(m) may add member-specific context.
     Returns the number of messages queued (app notifications included)."""
     if not member_ids:
@@ -140,7 +146,7 @@ def notify_members(c, member_ids, template, ctx, channels=("app", "whatsapp"), *
             mctx.update(per_member(m) or {})
         subject, body = i18n.render(template, lang, _ctx_for(lang, mctx))
         for ch, addr in member_channels(m, channels):
-            if queue(c, ch, addr, subject, body, lang=lang, member_id=mid, template=template, ref_kind=ref_kind, ref_id=ref_id, batch_id=batch_id, created_by=created_by):
+            if queue(c, ch, addr, subject, body, lang=lang, member_id=mid, template=template, ref_kind=ref_kind, ref_id=ref_id, batch_id=batch_id, created_by=created_by, not_before=not_before):
                 n += 1
     return n
 
@@ -244,6 +250,20 @@ def deliver(row):
             return "sent", send_sms(row["to_addr"], row["body"])
         if ch == "email":
             return "sent", send_email(row["to_addr"], row["subject"] or db.setting("club_short"), row["body"])
+        if ch == "push":
+            from . import push
+            sub = db.one("SELECT * FROM push_subs WHERE id=?", (int(row["to_addr"].split(":")[1]),))
+            if not sub:
+                return "failed", "subscription gone"
+            ok, info = push.send(sub, row["subject"], row["body"], ref_link(row["ref_kind"], row["ref_id"]))
+            with db.tx() as c:
+                if ok:
+                    c.execute("UPDATE push_subs SET last_ok=?, failures=0 WHERE id=?", (time.time(), sub["id"]))
+                elif info in ("HTTP 404", "HTTP 410"):
+                    c.execute("DELETE FROM push_subs WHERE id=?", (sub["id"],))
+                else:
+                    c.execute("UPDATE push_subs SET failures=failures+1 WHERE id=?", (sub["id"],))
+            return ("sent", info) if ok else ("failed", info)
     except urllib.error.HTTPError as e:
         return "failed", f"HTTP {e.code}: {e.read()[:200].decode('utf-8', 'replace')}"
     except Exception as e:  # noqa: BLE001 - the error text is what the operator needs to see
@@ -255,7 +275,7 @@ MAX_ATTEMPTS = 3
 
 
 def process_outbox(limit=50):
-    rows = db.q("SELECT * FROM outbox WHERE status='pending' ORDER BY id LIMIT ?", (limit,))
+    rows = db.q("SELECT * FROM outbox WHERE status='pending' AND (not_before IS NULL OR not_before<=?) ORDER BY id LIMIT ?", (time.time(), limit))
     done = 0
     for r in rows:
         status, info = deliver(r)

@@ -23,6 +23,13 @@ An exclusive product developed by Dr. Babu B., Team Bpro · [www.drbabu.in](http
 | **Accounts** | Receipts (admission, subscription, donation, event fee, fine, sponsorship, grant…) and payment vouchers, numbered per year; the member gets a receipt message. Annual subscription dues generated per membership type, defaulters list, bulk reminders, summaries by head and month, CSV export. Members see their own dues and receipts. |
 | **Communication** | One **outbox** for WhatsApp (Meta Cloud API), SMS (any HTTP gateway, DLT-ready), e-mail (SMTP) and in-app notifications, with per-member consent and preferred language. **Broadcast** to all members, a ward, a membership type, a committee, an event's registrants, a blood group, defaulters or a hand-picked list. Until a channel is configured its messages are recorded as *demo* so everything can be tried first. Click-to-chat `wa.me` links everywhere a phone appears. |
 | **Daily jobs** | Birthday wishes, event reminders, book due / overdue reminders - automatic, or from the Reports screen. |
+| **Sign-in & records** | Forgot-password by a one-time code over WhatsApp / SMS / e-mail. **Excel import** of an existing register (template, preview with row-by-row errors, then commit), **batch printing of membership cards**, photo capture on the application form, a **document library** (bye-laws, circulars, minutes, audit reports) with public / members / committee audience. |
+| **Payments by UPI** | A UPI QR and pay link on the member's dues screen, "I have paid" with the UTR, one-click confirmation by the treasurer that issues the receipt. No gateway fees. |
+| **QR scanning** | Scan the membership card (or type the number) to mark meeting attendance, event attendance or a reading-room visit in one tap. |
+| **Assets & bookings** | Register of chairs, sound system, sports kit and the like with a lending register and overdue reminders; **hall / ground booking** with a calendar, conflict check, member requests, office confirmation and receipt. |
+| **Tournaments & fests** | Fixtures with scores and winners for sports; judges with per-item score sheets, average-based ranking and one-click results for arts; a **championship points table** by ward / house / team. |
+| **Annual report** | Members, events, meetings and resolutions, library, accounts, bookings and assets for a year, on screen and as a printable bilingual report for the AGM. |
+| **Push & scheduling** | **Web Push** notifications to the phone / browser (VAPID, no third-party service), broadcasts scheduled for a later time, a "blood donor request" preset that targets one blood group. |
 | **Admin** | Roles (admin, president, secretary, treasurer, librarian, member) with a permission table shown in-app, club settings, numbering formats, membership types and fees, library rules, audit log, dashboard. Installable PWA, works on phones, light and dark. |
 
 ## Roles
@@ -86,6 +93,10 @@ Everything works without any gateway: messages are recorded in the **Outbox** as
 
 Message texts live in `app/i18n.py` (English and Malayalam); UI strings in `app/static/i18n.js`.
 
+**UPI**: enter the club's UPI ID and payee name under *Settings*; members then see a QR / pay link on *My payments*.
+**Web Push**: nothing to configure - the VAPID key pair is generated on first use and kept in the database. Members
+turn notifications on under *My profile → Notification preferences* (the app must be served over HTTPS).
+
 ## Layout
 
 ```
@@ -101,6 +112,8 @@ app/library.py     books, copies, issue / return / renew, reservations, reading 
 app/finance.py     receipts, vouchers, dues
 app/reports.py     dashboard and reports
 app/scheduler.py   daily jobs
+app/facilities.py  assets and lending, facilities and bookings
+app/push.py        Web Push (VAPID + aes128gcm) without a push library
 app/manage.py      create-admin, seed-demo, daily
 app/static/        the PWA: app.js (core) + one file per area, i18n.js, styles.css
 tests/             workflow tests
