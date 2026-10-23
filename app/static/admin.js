@@ -52,7 +52,7 @@ A.saveSettings = async () => {
   b.wards = String(b.wards || '').split('\n').map(x => x.trim()).filter(Boolean);
   b.teams = String(b.teams || '').split('\n').map(x => x.trim()).filter(Boolean);
   b.membership_types = [...f.querySelectorAll('.mt-row')].map(r => { const o = {}; r.querySelectorAll('[name]').forEach(el => o[el.name] = el.type === 'number' ? Number(el.value || 0) : el.value.trim()); return o; }).filter(x => x.key && x.en);
-  await post('/api/settings', b); toast(t('saved'), 'ok'); await App.me(); App.route();
+  try { await post('/api/settings', b); } catch (e) { return; } toast(t('saved'), 'ok'); await App.me(); App.route();
 };
 A.brandPreview = () => { const f = document.getElementById('set-f'); const p = f.querySelector('[name=brand_primary]').value, a = f.querySelector('[name=brand_accent]').value; const el = document.getElementById('brand-prev'); el.style.background = p; el.querySelector('.acc').style.background = a; };
 async function viewAudit() { const rows = await get('/api/audit'); render(page(t('audit'), '', '', `<div class="card">${tbl([{ h: t('date'), f: r => `<span class="nowrap">${esc(fmtTs(r.ts))}</span>` }, { h: t('user'), f: r => esc(r.by_name || '-') }, { h: '', f: r => `<b>${esc(r.action)}</b> ${r.ref_kind ? `<span class="small muted">${esc(r.ref_kind)} #${r.ref_id || ''}</span>` : ''}<div class="small muted">${esc(r.detail)}</div>` }], rows)}</div>`)); }

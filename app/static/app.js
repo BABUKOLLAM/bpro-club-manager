@@ -30,6 +30,7 @@ async function api(method, url, body, opts = {}) {
   if (r.status === 401 && S.user && !opts.quiet) { S.user = null; nav('#/login'); throw new Error('sign in'); }
   let data = null; const ct = r.headers.get('content-type') || '';
   data = ct.includes('json') ? await r.json() : await r.text();
+  if (r.status === 402 && S.user) { await App.me(); App.route(); }  // the club just became read-only: show the banner
   if (!r.ok) { const msg = (data && data.error) || r.statusText || t('error'); if (!opts.quiet) toast(msg, 'bad'); throw new Error(msg); }
   return data;
 }
@@ -121,7 +122,7 @@ function navItems() {
   if (can('finance.view')) { office.push({ h: '#/finance', l: t('accounts') }); office.push({ h: '#/finance/dues', l: t('dues') }); }
   if (can('reports.view')) office.push({ h: '#/reports', l: t('reports') });
   if (can('users.manage')) office.push({ h: '#/users', l: t('users') });
-  if (can('settings.manage')) { office.push({ h: '#/settings', l: t('settings') }); office.push({ h: '#/audit', l: t('audit') }); }
+  if (can('settings.manage')) { office.push({ h: '#/settings', l: t('settings') }); if (S.info && S.info.plan && !S.info.plan.exempt) office.push({ h: '#/plan', l: t('subscription_plan') }); office.push({ h: '#/audit', l: t('audit') }); }
   return { items, office };
 }
 function shell(bodyHtml, title) {
@@ -131,7 +132,7 @@ function shell(bodyHtml, title) {
   return `<div class="shell"><aside class="side"><div class="brand">${brandLogo()}<div>${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div></div>
   <nav class="nav">${items.map(link).join('')}${office.length ? `<div class="grp">${t('office')}</div>${office.map(link).join('')}` : ''}</nav>
   <div class="foot">${esc(S.user.name)} · ${esc(t(S.user.role))}<br>${langBtn()} <button class="lang-sw" onclick="A.logout()">${t('sign_out')}</button><br><a href="/help?lang=${S.lang}" target="_blank" style="color:inherit;opacity:.85">📖 ${t('handbook')}</a><br><br>${esc(info.footer_credit || '')}</div></aside>
-  <div class="main"><div class="top"><button onclick="document.querySelector('.side').classList.toggle('open')">☰</button><div class="ttl">${esc(title || info.club_short || '')}</div>${langBtn()}</div><div id="main">${bodyHtml}</div></div></div>`;
+  <div class="main"><div class="top"><button onclick="document.querySelector('.side').classList.toggle('open')">☰</button><div class="ttl">${esc(title || info.club_short || '')}</div>${langBtn()}</div>${typeof planBanner === "function" ? planBanner() : ""}<div id="main">${bodyHtml}</div></div></div>`;
 }
 function brandLogo() { const b = (S.info && S.info.brand) || {}; return b.logo ? `<img src="${esc(b.logo)}" alt="">` : ''; }
 // The club's colours, title and icon: inlined by the server on first paint, refreshed here after a settings change.
@@ -318,6 +319,7 @@ const App = {
     this.route();
   },
   async route() {
+    if (S.user && S.info && S.info.plan && S.info.plan.read_only) await App.me();  // a reopened club recovers on its next step
     const full = location.hash.slice(1) || '/'; const [path, qs] = full.split('?'); const query = Object.fromEntries(new URLSearchParams(qs || ''));
     for (const [re, fn] of ROUTES) {
       const m = path.match(re); if (!m) continue;

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import auth, brand, comms, db, i18n, push, security, tenancy
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, help as helpdoc
+from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, saas, help as helpdoc
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -44,10 +44,17 @@ class TenantMiddleware:
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         path = scope.get("path", "")
         slug = tenancy.resolve(headers.get("host", ""))
-        if slug is None and not (path == "/healthz" or path.startswith("/_platform") or path.startswith("/api/_platform") or path.startswith("/static/")):
+        platform_path = path == "/healthz" or path.startswith(("/_platform", "/api/_platform", "/static/", "/signup", "/pricing", "/api/saas/signup", "/api/saas/webhook", "/brand/"))
+        if slug is None and not platform_path:
             resp = JSONResponse({"error": "no club at this address"}, status_code=404) if path.startswith("/api/") else HTMLResponse("<h1>No club at this address</h1>", status_code=404)
             return await resp(scope, receive, send)
-        token = tenancy.current.set(slug or "default")
+        slug = slug or "default"
+        # an unpaid club is read-only: sign-in, reading and paying still work, nothing else changes
+        if scope.get("method") in ("POST", "PUT", "PATCH", "DELETE") and slug != "default" and not platform_path \
+                and not path.startswith(("/api/auth/", "/api/saas/", "/api/push/")) and saas.is_read_only(slug):
+            resp = JSONResponse({"error": "subscription unpaid: the club is read-only until it is paid", "read_only": True}, status_code=402)
+            return await resp(scope, receive, send)
+        token = tenancy.current.set(slug)
         try:
             await self.app(scope, receive, send)
         finally:
@@ -134,6 +141,8 @@ def public_info():
     out["upi_id"] = s["upi_id"]
     out["upi_name"] = s["upi_name"]
     out["brand"] = brand.palette(s)
+    p = saas.plan_of(tenancy.current.get())
+    out["plan"] = {"status": p["status"], "days_left": p["days_left"], "read_only": p.get("read_only", False), "exempt": p["exempt"], "product": saas.product()["name"]}
     return out
 
 
@@ -688,6 +697,23 @@ async def platform_update(slug: str, request: Request):
     return {"ok": True, "tenant": t}
 
 
+@app.get("/api/_platform/billing")
+def platform_billing(request: Request):
+    _master(request)
+    return {"summary": saas.summary(), "rows": saas.console_rows()}
+
+
+@app.post("/api/_platform/tenants/{slug}/plan")
+async def platform_plan(slug: str, request: Request):
+    _master(request)
+    b = await request.json()
+    try:
+        plan = saas.console_action(slug, b.get("action") or "", b)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "plan": plan, "view": saas.plan_of(slug)}
+
+
 @app.post("/api/_platform/settings")
 async def platform_settings(request: Request):
     _master(request)
@@ -700,6 +726,18 @@ async def platform_settings(request: Request):
     for k in ("product_name", "powered_by"):
         if k in b:
             reg[k] = str(b[k] or "").strip()[:120]
+    if isinstance(b.get("pricing"), dict):
+        pr = {**saas.pricing()}
+        for k in ("flat_upto", "flat_price", "per_member", "trial_days", "grace_days"):
+            if k in b["pricing"]:
+                try:
+                    pr[k] = max(0, int(b["pricing"][k]))
+                except (TypeError, ValueError):
+                    raise HTTPException(400, f"{k} must be a whole number")
+        for k in ("upi_id", "upi_name", "support"):
+            if k in b["pricing"]:
+                pr[k] = str(b["pricing"][k] or "").strip()[:120]
+        reg["pricing"] = pr
     tenancy.save_registry(reg)
     return {"ok": True}
 
@@ -758,5 +796,7 @@ app.include_router(facilities.router)
 app.include_router(payments.router)
 app.include_router(polls.router)
 app.include_router(site.router)
+app.include_router(saas.router, prefix="/api/saas")
+app.include_router(saas.pages)
 app.include_router(helpdoc.router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

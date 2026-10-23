@@ -126,6 +126,28 @@ Secrets are stored per club and shown masked.
 The operator's own brand lives on `/_platform`: a *product name* for the platform page and a *footer credit* that new
 clubs start with ("Powered by …"), which a club may change.
 
+## SaaS edition (ClubPro)
+
+The same server can be run as a service where clubs sign up by themselves and pay yearly.
+
+* **Signup** at `/signup` (English / Malayalam): club name, place, short name, web address, the secretary's name,
+  mobile and password. A one-time code goes to the mobile through the operator's SMS or WhatsApp channel (or e-mail);
+  the club is created at `<slug>.<CLUB_BASE_DOMAIN>` on a free trial, in the chosen language, with the operator's
+  "Powered by" footer.
+* **Pricing** at `/pricing`, editable on `/_platform`: a flat yearly price for clubs up to N active members
+  (default ₹2,500 up to 49), otherwise a per-member price (default ₹120 per active member per year). The price is
+  worked out from the live member count at each renewal, so there is no cap to hit. Trial 30 days, grace 15 days.
+* **Paying**: *Office → Subscription plan* shows the status, the end date, the active members and next year's price.
+  Clubs pay online through the operator's Razorpay account (`CLUBPRO_RZP_KEY_ID`, `CLUBPRO_RZP_KEY_SECRET`, webhook
+  `/api/saas/webhook` with `CLUBPRO_RZP_WEBHOOK_SECRET`) or by UPI to the operator's ID, sending the transaction
+  reference, which the operator confirms on the console.
+* **Lifecycle**: trial → active (paid a year) → overdue (grace) → read-only. A read-only club still signs in, reads
+  everything and pays; every other change is refused with a clear message. Nothing is deleted. Office bearers are
+  reminded 7 days before the end, when payment is due and when the club becomes read-only (app, WhatsApp, e-mail).
+* **Operator console** on `/_platform`: clubs by status, yearly run-rate, amount collected, trials ending this week,
+  UPI claims to confirm, per-club mark paid / extend trial / suspend / reopen, pricing, UPI ID and support contact.
+  The original (default) club is the operator's own and pays nothing.
+
 ## Multi-club edition
 
 One installation can serve many clubs. Each club has its own database, uploads and backups under
@@ -177,6 +199,7 @@ app/polls.py       polls and elections
 app/site.py        the public website page
 app/security.py    rate limiting and security headers
 app/brand.py       white label: palette from two colours, logo, generated app icons
+app/saas.py        SaaS: signup with OTP, pricing, plan state, operator billing, reminders, /pricing and /signup
 app/tenancy.py     multi-club registry, host → club resolution, per-club directories
 app/help.py        the bilingual handbook
 app/manage.py      create-admin, seed-demo, daily, tenants, tenant-add

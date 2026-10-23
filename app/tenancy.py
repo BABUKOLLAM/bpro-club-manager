@@ -17,6 +17,8 @@ current = contextvars.ContextVar("club_tenant", default="default")
 _lock = threading.Lock()
 _cache = {"mtime": None, "data": None}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}$")
+DEFAULT_PRODUCT = "ClubPro"
+DEFAULT_POWERED_BY = "Powered by Team Bpro"
 
 
 def data_root():
@@ -129,13 +131,13 @@ def create(slug, name_en, name_ml="", domains=(), admin_login="", admin_password
     os.makedirs(os.path.join(tenant_dir(slug), "uploads"), exist_ok=True)
     save_registry(reg)
     try:
+        db.forget(slug)
         with use(slug):
             db.init()
             with db.tx() as c:
                 db.set_setting(c, "club_name_en", name_en)
                 db.set_setting(c, "club_name_ml", name_ml or name_en)
-                if reg.get("powered_by"):
-                    db.set_setting(c, "footer_credit", reg["powered_by"])
+                db.set_setting(c, "footer_credit", reg.get("powered_by") or DEFAULT_POWERED_BY)
                 if short:
                     db.set_setting(c, "club_short", short)
                     db.set_setting(c, "member_no_prefix", short)
