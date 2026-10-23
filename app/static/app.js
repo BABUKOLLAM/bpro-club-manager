@@ -130,7 +130,7 @@ function shell(bodyHtml, title) {
   const info = S.info || {};
   return `<div class="shell"><aside class="side"><div class="brand">${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div>
   <nav class="nav">${items.map(link).join('')}${office.length ? `<div class="grp">${t('office')}</div>${office.map(link).join('')}` : ''}</nav>
-  <div class="foot">${esc(S.user.name)} · ${esc(t(S.user.role))}<br>${langBtn()} <button class="lang-sw" onclick="A.logout()">${t('sign_out')}</button><br><br>${esc(info.footer_credit || '')}</div></aside>
+  <div class="foot">${esc(S.user.name)} · ${esc(t(S.user.role))}<br>${langBtn()} <button class="lang-sw" onclick="A.logout()">${t('sign_out')}</button><br><a href="/help?lang=${S.lang}" target="_blank" style="color:#fff;opacity:.85">📖 ${t('handbook')}</a><br><br>${esc(info.footer_credit || '')}</div></aside>
   <div class="main"><div class="top"><button onclick="document.querySelector('.side').classList.toggle('open')">☰</button><div class="ttl">${esc(title || info.club_short || '')}</div>${langBtn()}</div><div id="main">${bodyHtml}</div></div></div>`;
 }
 A.logout = async () => { await post('/api/auth/logout'); S.user = null; S.member = null; S.membersCache = null; nav('#/'); };
@@ -139,7 +139,7 @@ A.logout = async () => { await post('/api/auth/logout'); S.user = null; S.member
 function pubShell(body) {
   const info = S.info || {};
   return `<div class="pub"><header><div class="brand">${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div>
-  ${langBtn()} <a class="btn" href="/site?lang=${S.lang}">${t('website')}</a><a class="btn" href="#/login">${t('sign_in')}</a>${info.public_registration === '1' ? `<a class="btn accent" href="#/apply">${t('apply')}</a>` : ''}</header><main>${body}</main><footer>${esc(info.footer_credit || '')}</footer></div>`;
+  ${langBtn()} <a class="btn" href="/site?lang=${S.lang}">${t('website')}</a><a class="btn" href="/help?lang=${S.lang}">${t('help')}</a><a class="btn" href="#/login">${t('sign_in')}</a>${info.public_registration === '1' ? `<a class="btn accent" href="#/apply">${t('apply')}</a>` : ''}</header><main>${body}</main><footer>${esc(info.footer_credit || '')}</footer></div>`;
 }
 async function viewLanding() {
   const posts = await get('/api/public/posts');
@@ -158,31 +158,44 @@ A.forgot = () => formSheet(t('forgot'), `<p class="full small muted">${t('forgot
 }, { saveLabel: t('send_code') });
 async function viewLogin() { render(pubShell(`<div class="card" style="max-width:440px;margin:0 auto">${loginFormHtml()}</div>`)); bindLogin(); }
 async function viewApply() {
-  const info = S.info; const types = info.membership_types.map(x => [x.key, (S.lang === 'ml' ? x.ml : x.en) + (x.admission || x.annual ? ` (${t('admission')} ₹${x.admission}, ${t('annual')} ₹${x.annual})` : '')]);
-  const fam = () => `<div class="card fam-row" style="padding:10px 12px;margin-top:8px"><div class="form">${F.text('f_name_en', t('name_en'), '', { req: true })}${F.text('f_name_ml', t('name_ml'))}${F.select('f_relation', t('relation'), '', info.relations)}${F.date('f_dob', t('dob'))}${F.select('f_blood_group', t('blood_group'), '', info.blood_groups.map(b => [b, b]))}${F.text('f_phone', t('phone'))}${F.text('f_education', t('education'))}${F.text('f_occupation', t('occupation'))}</div><button type="button" class="btn ghost sm" style="margin-top:6px" onclick="this.parentNode.remove()">${t('remove')}</button></div>`;
-  render(pubShell(`<div class="card" style="max-width:860px;margin:0 auto"><h1>${t('apply_title')}</h1><p class="muted">${t('apply_intro')}</p>
-  <form id="apply-f" class="form" onsubmit="return false">
-  ${F.text('name_en', t('name_en'), '', { req: true })}${F.text('name_ml', t('name_ml'))}${F.select('gender', t('gender'), '', ['male', 'female', 'other'])}${F.date('dob', t('dob'))}
-  ${F.text('phone', t('phone'), '', { req: true, type: 'tel', attrs: 'inputmode="tel" pattern="[0-9 +-]{10,15}"' })}${F.text('whatsapp', t('whatsapp'), '', { type: 'tel' })}${F.text('email', t('email'), '', { type: 'email' })}${F.select('blood_group', t('blood_group'), '', info.blood_groups.map(b => [b, b]))}
-  ${F.text('house_en', t('house') + ' (English)')}${F.text('house_ml', t('house') + ' (മലയാളം)')}${F.area('address_en', t('address') + ' (English)', '', { full: false, rows: 2 })}${F.area('address_ml', t('address') + ' (മലയാളം)', '', { full: false, rows: 2 })}
-  ${info.wards.length ? F.select('ward', t('ward'), '', info.wards.map(w => [w, w])) : F.text('ward', t('ward'))}${F.text('pincode', t('pincode'))}${F.text('occupation', t('occupation'))}${F.text('education', t('education'))}
-  ${F.select('membership_type', t('membership_type'), 'ordinary', types, { blank: false })}${F.text('interests', t('interests'))}${F.text('id_proof', t('id_proof'))}${F.select('lang', t('lang_pref'), S.lang, [['ml', 'മലയാളം'], ['en', 'English']], { blank: false })}
-  <div class="full"><h3>${t('family_members')}</h3><div id="fam"></div><button type="button" class="btn ghost sm" id="add-fam" style="margin-top:8px">+ ${t('add_family')}</button></div>
-  ${F.file('photo_file', t('take_photo'), { attrs: 'capture="user"' })}
-  ${F.text('password', t('choose_password'), '', { req: true, type: 'password', attrs: 'minlength="8" autocomplete="new-password"' })}${F.text('password2', t('confirm_password'), '', { req: true, type: 'password', attrs: 'autocomplete="new-password"' })}
-  <div class="full"><h3>${t('preferences')}</h3><div class="chks">${F.chk('notify_whatsapp', t('notify_whatsapp'), 1)}${F.chk('notify_sms', t('notify_sms'), 1)}${F.chk('notify_email', t('notify_email'), 1)}${F.chk('show_phone', t('show_phone'), 1)}</div></div>
-  <div class="full actions"><button class="btn accent" id="apply-b">${t('apply')}</button><a class="btn ghost" href="#/">${t('cancel')}</a></div></form></div>`));
-  document.getElementById('add-fam').onclick = () => document.getElementById('fam').insertAdjacentHTML('beforeend', fam());
-  document.getElementById('apply-b').onclick = async () => {
-    const f = document.getElementById('apply-f'); if (!f.reportValidity()) return; const b = readForm(f);
-    if (b.password !== b.password2) return toast(t('pw_mismatch'), 'bad');
-    b.family = [...document.querySelectorAll('.fam-row')].map(r => { const o = {}; r.querySelectorAll('[name]').forEach(el => o[el.name.replace(/^f_/, '')] = el.value); return o; });
-    for (const k of Object.keys(b)) if (k.startsWith('f_')) delete b[k];
-    const pf = f.querySelector('[name=photo_file]');
-    try { if (pf && pf.files[0]) { const fd = new FormData(); fd.append('file', pf.files[0]); b.photo = (await api('POST', '/api/public/photo', fd)).path; } } catch (e) { return; }
-    try { await post('/api/public/apply', b); render(pubShell(`<div class="card center" style="max-width:560px;margin:0 auto"><h1>✓</h1><p>${t('apply_done')}</p><a class="btn" href="#/">${t('back')}</a></div>`)); } catch (e) {}
-  };
+  const info = S.info; let AP; try { AP = JSON.parse(sessionStorage.getItem('club_apply') || 'null'); } catch (e) { AP = null; }
+  AP = AP && AP.data ? AP : { step: 0, data: { membership_type: 'ordinary', lang: S.lang, notify_whatsapp: 1, notify_sms: 1, notify_email: 1, show_phone: 1 }, family: [], photo: null, photoName: '' };
+  S.ap = AP; renderApply();
 }
+const AP_STEPS = ['step_personal', 'step_contact', 'step_family', 'step_photo', 'step_account', 'step_review'];
+function apSave() { const { photo, ...rest } = S.ap; try { sessionStorage.setItem('club_apply', JSON.stringify({ ...rest, photo: photo && photo.length < 400000 ? photo : null })); } catch (e) {} }
+function apCollect() { const f = document.getElementById('ap-f'); if (!f) return true; if (!f.reportValidity()) return false; Object.assign(S.ap.data, readForm(f)); return true; }
+function renderApply() {
+  const AP = S.ap, info = S.info, d = AP.data, step = AP.step; const types = info.membership_types.map(x => [x.key, (S.lang === 'ml' ? x.ml : x.en) + (x.admission || x.annual ? ` (₹${x.admission} + ₹${x.annual}/yr)` : '')]);
+  const bar = `<div class="steps-bar">${AP_STEPS.map((k, i) => `<span class="${i === step ? 'on' : i < step ? 'done' : ''}">${i === step ? `${i + 1}. ${t(k)}` : i < step ? '✓' : i + 1}</span>`).join('')}</div><div class="small muted" style="margin:-8px 0 12px">${step + 1} / ${AP_STEPS.length}</div>`;
+  let body = '';
+  if (step === 0) body = `<form class="form" id="ap-f" onsubmit="return false">${F.text('name_en', t('name_en'), d.name_en, { req: true, attrs: 'autocomplete="name"' })}${F.text('name_ml', t('name_ml'), d.name_ml)}${F.select('gender', t('gender'), d.gender, ['male', 'female', 'other'])}${F.date('dob', t('dob'), d.dob)}${F.select('blood_group', t('blood_group'), d.blood_group, info.blood_groups.map(b => [b, b]))}${F.select('membership_type', t('membership_type'), d.membership_type || 'ordinary', types, { blank: false })}${F.text('occupation', t('occupation'), d.occupation)}${F.text('education', t('education'), d.education)}${F.text('interests', t('interests'), d.interests, { full: true })}</form>`;
+  else if (step === 1) body = `<form class="form" id="ap-f" onsubmit="return false">${F.text('phone', t('phone'), d.phone, { req: true, type: 'tel', attrs: 'inputmode="tel" pattern="[0-9 +\\-]{10,15}" autocomplete="tel"' })}${F.text('whatsapp', t('whatsapp'), d.whatsapp, { type: 'tel' })}${F.text('email', t('email'), d.email, { type: 'email', attrs: 'autocomplete="email"' })}${info.wards.length ? F.select('ward', t('ward'), d.ward, info.wards.map(w => [w, w])) : F.text('ward', t('ward'), d.ward)}${F.text('house_en', t('house') + ' (English)', d.house_en)}${F.text('house_ml', t('house') + ' (മലയാളം)', d.house_ml)}${F.area('address_en', t('address') + ' (English)', d.address_en, { full: false, rows: 2 })}${F.area('address_ml', t('address') + ' (മലയാളം)', d.address_ml, { full: false, rows: 2 })}${F.text('pincode', t('pincode'), d.pincode, { attrs: 'inputmode="numeric"' })}${F.text('id_proof', t('id_proof'), d.id_proof)}</form>`;
+  else if (step === 2) body = `<div class="stack"><div class="row"><span class="small muted">${t('quick_add')}:</span><div class="chips">${['spouse', 'son', 'daughter', 'father', 'mother'].map(r => `<span class="chip" onclick="A.apFamily(null,'${r}')">+ ${t(r)}</span>`).join('')}<span class="chip" onclick="A.apFamily(null,'')">+ ${t('other')}</span></div></div>
+    ${AP.family.length ? AP.family.map((f, i) => `<div class="fam-card"><div class="avatar">${esc(initials(f.name_en))}</div><div class="body"><div class="t">${esc(f.name_en)}${f.name_ml ? ` <span class="muted small">${esc(f.name_ml)}</span>` : ''}</div><div class="s">${esc(t(f.relation || 'other'))}${f.dob ? ' · ' + esc(fmtDate(f.dob)) : ''}${f.blood_group ? ' · ' + esc(f.blood_group) : ''}${f.phone ? ' · ' + esc(f.phone) : ''}</div></div><button class="btn ghost sm" onclick="A.apFamily(${i})">${t('edit_family')}</button><button class="btn ghost sm" onclick="S.ap.family.splice(${i},1);apSave();renderApply()">✕</button></div>`).join('') : `<div class="notice info">${t('no_family_yet')}</div>`}</div>`;
+  else if (step === 3) body = `<p class="muted">${t('photo_hint')}</p><div class="photo-pick">${AP.photo ? `<img class="pv" src="${AP.photo}">` : `<div class="pv">📷</div>`}<div class="stack"><label class="btn">📸 ${t('selfie')}<input type="file" accept="image/*" capture="user" hidden onchange="A.apPhoto(this.files[0])"></label><label class="btn ghost">🖼 ${t('from_gallery')}<input type="file" accept="image/*,.heic" hidden onchange="A.apPhoto(this.files[0])"></label>${AP.photo ? `<button class="btn ghost sm" onclick="S.ap.photo=null;apSave();renderApply()">${t('retake')}</button>` : ''}</div></div>`;
+  else if (step === 4) body = `<form class="form" id="ap-f" onsubmit="return false">${F.text('password', t('choose_password'), d.password || '', { req: true, type: 'password', attrs: 'minlength="8" autocomplete="new-password"' })}${F.text('password2', t('confirm_password'), d.password2 || '', { req: true, type: 'password', attrs: 'autocomplete="new-password"' })}${F.select('lang', t('lang_pref'), d.lang || S.lang, [['ml', 'മലയാളം'], ['en', 'English']], { blank: false })}
+    <div class="full"><h3>${t('preferences')}</h3><div class="chks">${F.chk('notify_whatsapp', t('notify_whatsapp'), d.notify_whatsapp)}${F.chk('notify_sms', t('notify_sms'), d.notify_sms)}${F.chk('notify_email', t('notify_email'), d.notify_email)}</div>${F.chk('show_phone', t('show_phone'), d.show_phone)}</div>
+    <div class="full">${F.chk('consent_true', t('consent_true'), d.consent_true)}${F.chk('consent_msgs', t('consent_msgs'), d.consent_msgs)}</div></form>`;
+  else body = `<p class="muted">${t('review_hint')}</p><div class="grid2"><div class="card"><div class="row">${AP.photo ? `<img src="${AP.photo}" style="width:72px;height:88px;object-fit:cover;border-radius:10px">` : avatar({ name_en: d.name_en })}<div><b>${esc(d.name_en)}</b>${d.name_ml ? `<div>${esc(d.name_ml)}</div>` : ''}<div class="small muted">${esc(t(d.membership_type))}${d.dob ? ' · ' + esc(fmtDate(d.dob)) : ''}${d.blood_group ? ' · ' + esc(d.blood_group) : ''}</div></div></div>
+    <dl class="kv" style="margin-top:10px"><dt>${t('phone')}</dt><dd>${esc(d.phone)}${d.whatsapp ? ' · WA ' + esc(d.whatsapp) : ''}</dd><dt>${t('email')}</dt><dd>${esc(d.email || '-')}</dd><dt>${t('address')}</dt><dd>${esc([d.house_en || d.house_ml, d.address_en || d.address_ml, d.ward ? t('ward') + ' ' + d.ward : '', d.pincode].filter(Boolean).join(', ') || '-')}</dd><dt>${t('occupation')}</dt><dd>${esc(d.occupation || '-')}</dd></dl></div>
+    <div class="card"><h3>${t('family_members')} (${AP.family.length})</h3>${AP.family.map(f => `<div class="small">${esc(f.name_en)} · ${esc(t(f.relation || 'other'))}${f.dob ? ' · ' + esc(fmtDate(f.dob)) : ''}</div>`).join('') || `<div class="small muted">-</div>`}<h3 style="margin-top:12px">${t('preferences')}</h3><div class="small">${['notify_whatsapp', 'notify_sms', 'notify_email'].filter(k => d[k]).map(k => t(k)).join(', ') || t('none')} · ${d.lang === 'ml' ? 'മലയാളം' : 'English'}</div></div></div>`;
+  const nav_ = `<div class="actions" style="justify-content:space-between"><div>${step > 0 ? `<button class="btn ghost" onclick="A.apGo(${step - 1})">‹ ${t('prev')}</button>` : `<a class="btn ghost" href="#/">${t('cancel')}</a>`}</div><div class="row"><span class="small muted">${t('draft_saved')}</span>${step < 5 ? `<button class="btn" onclick="A.apGo(${step + 1})">${t('next')} ›</button>` : `<button class="btn accent" id="ap-submit" onclick="A.apSubmit()">${t('submit_application')}</button>`}</div></div>`;
+  render(pubShell(`<div class="card" style="max-width:860px;margin:0 auto"><h1>${t('apply_title')}</h1>${bar}${body}${nav_}</div>`));
+}
+A.apGo = n => { if (n > S.ap.step && !apCollect()) return; if (S.ap.step === 4 && n > 4) { const d = S.ap.data; if (d.password !== d.password2) return toast(t('pw_mismatch'), 'bad'); if (!d.consent_true) return toast(t('consent_true'), 'bad'); } S.ap.step = n; apSave(); renderApply(); };
+A.apFamily = (i, rel) => { const f = i == null ? { relation: rel || '' } : S.ap.family[i]; const info = S.info;
+  formSheet(i == null ? t('add_family') : t('edit_family'), `${F.text('name_en', t('name_en'), f.name_en, { req: true })}${F.text('name_ml', t('name_ml'), f.name_ml)}${F.select('relation', t('relation'), f.relation, info.relations)}${F.select('gender', t('gender'), f.gender, ['male', 'female', 'other'])}${F.date('dob', t('dob'), f.dob)}${F.select('blood_group', t('blood_group'), f.blood_group, info.blood_groups.map(b => [b, b]))}${F.text('phone', t('phone'), f.phone, { type: 'tel' })}${F.text('education', t('education'), f.education)}${F.text('occupation', t('occupation'), f.occupation)}`,
+    async b => { if (i == null) S.ap.family.push(b); else S.ap.family[i] = b; apSave(); closeSheet(); renderApply(); }); };
+A.apPhoto = file => { if (!file) return; const r = new FileReader(); r.onload = () => { const im = new Image(); im.onload = () => { const max = 900, sc = Math.min(1, max / Math.max(im.width, im.height)); const c = document.createElement('canvas'); c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); S.ap.photo = c.toDataURL('image/jpeg', .85); S.ap.photoName = file.name; apSave(); renderApply(); }; im.onerror = () => toast(t('error'), 'bad'); im.src = r.result; }; r.readAsDataURL(file); };
+A.apSubmit = async () => {
+  const AP = S.ap, b = { ...AP.data, family: AP.family }; delete b.password2; delete b.consent_true; delete b.consent_msgs; const btn = document.getElementById('ap-submit'); btn.disabled = true;
+  try {
+    if (AP.photo) { const bin = atob(AP.photo.split(',')[1]); const arr = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i); const fd = new FormData(); fd.append('file', new Blob([arr], { type: 'image/jpeg' }), 'photo.jpg'); b.photo = (await api('POST', '/api/public/photo', fd)).path; }
+    await post('/api/public/apply', b); sessionStorage.removeItem('club_apply');
+    render(pubShell(`<div class="card" style="max-width:600px;margin:0 auto"><h1 class="center">✓</h1><p class="center">${t('apply_done')}</p><h3>${t('what_next')}</h3><div class="steps"><div class="step">${t('next_1')}</div><div class="step">${t('next_2')}</div><div class="step">${t('next_3')}</div></div><div class="actions"><a class="btn" href="#/">${t('back')}</a></div></div>`));
+  } catch (e) { btn.disabled = false; }
+};
 
 // ---------- home ----------
 async function viewHome() {
@@ -207,7 +220,8 @@ async function viewMe(tab) {
   const m = await get(`/api/members/${S.user.member_id}`); S.member = m;
   const T = tabs([['#/me', t('me')], ['#/me/family', t('family')], ['#/me/preferences', t('preferences')], ['#/me/password', t('change_password')]], location.hash.split('?')[0]);
   let body = '';
-  if (!tab) body = `<div class="card"><div class="row">${avatar(m)}<div><h2 style="margin:0">${esc(nameOf(m))}</h2><div class="muted">${esc(m.member_no)} · ${esc(t(m.membership_type))} · ${statusPill(m.status)}</div></div><div class="grow"></div><a class="btn ghost sm" target="_blank" href="/api/members/${m.id}/card?lang=${S.lang}">${t('card')}</a><button class="btn sm" onclick="A.editMe()">${t('edit')}</button></div>
+  const cardD = !tab ? await get(`/api/members/${m.id}/card.json`, { quiet: true }).catch(() => null) : null;
+  if (!tab) body = (cardD ? ecardBlock(m.id, cardD) : '') + `<div class="card"><div class="row">${avatar(m)}<div><h2 style="margin:0">${esc(nameOf(m))}</h2><div class="muted">${esc(m.member_no)} · ${esc(t(m.membership_type))} · ${statusPill(m.status)}</div></div><div class="grow"></div><a class="btn ghost sm" target="_blank" href="/api/members/${m.id}/card?lang=${S.lang}">${t('card')}</a><button class="btn sm" onclick="A.editMe()">${t('edit')}</button></div>
     <dl class="kv" style="margin-top:14px"><dt>${t('phone')}</dt><dd>${esc(m.phone)}</dd><dt>${t('whatsapp')}</dt><dd>${esc(m.whatsapp || '-')}</dd><dt>${t('email')}</dt><dd>${esc(m.email || '-')}</dd><dt>${t('dob')}</dt><dd>${esc(fmtDate(m.dob) || '-')}</dd><dt>${t('blood_group')}</dt><dd>${esc(m.blood_group || '-')}</dd>
     <dt>${t('house')}</dt><dd>${esc(bil(m, 'house') || '-')}</dd><dt>${t('address')}</dt><dd>${esc(bil(m, 'address') || '-')}</dd><dt>${t('ward')}</dt><dd>${esc(m.ward || '-')}</dd><dt>${t('occupation')}</dt><dd>${esc(m.occupation || '-')}</dd><dt>${t('joined_on')}</dt><dd>${esc(fmtDate(m.joined_on))}</dd></dl>
     ${m.committees.length ? `<h3 style="margin-top:14px">${t('committees')}</h3>${m.committees.map(c => `<div><a href="#/committees/${c.committee_id}">${esc(bil(c, 'committee'))}</a> · ${esc(bil(c, 'designation') || t(c.role))}</div>`).join('')}` : ''}</div>`;
@@ -216,6 +230,7 @@ async function viewMe(tab) {
     <h3 style="margin-top:16px">${t('push_notifications')}</h3><div id="push-box" class="row"><span class="muted">…</span></div></div>`;
   else if (tab === 'password') body = `<div class="card" style="max-width:480px"><form class="form" id="pw-f" onsubmit="return false">${F.text('current', t('current_password'), '', { type: 'password', req: true, full: true })}${F.text('new', t('new_password'), '', { type: 'password', req: true, full: true, attrs: 'minlength="8"' })}<div class="full actions"><button class="btn" onclick="A.changePw()">${t('save')}</button></div></form></div>`;
   render(page(t('me'), '', '', T + body));
+  fitCards();
   if (tab === 'preferences') renderPushBox();
 }
 function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }

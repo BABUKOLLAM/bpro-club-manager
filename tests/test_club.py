@@ -453,7 +453,7 @@ def test_excel_import(admin):
     assert admin.post("/api/members/import?commit=0", files={"file": ("reg.xlsx", buf.getvalue(), "application/octet-stream")}, headers=H).json()["valid"] == 0
     # batch cards
     cards = admin.get("/api/members/print/cards?mtype=life&lang=en")
-    assert cards.status_code == 200 and "ASC/2015/0003" in cards.text and "ASC/OLD/17" in cards.text and cards.text.count("class=\"card\"") == 2
+    assert cards.status_code == 200 and "ASC/2015/0003" in cards.text and "ASC/OLD/17" in cards.text and cards.text.count('class="ecard"') == 2
 
 
 def test_upi_claim_and_confirmation(admin):
@@ -865,3 +865,19 @@ def test_rate_limits_and_security_headers(admin):
     assert r.headers["X-Content-Type-Options"] == "nosniff" and r.headers["X-Frame-Options"] == "SAMEORIGIN" and "default-src 'self'" in r.headers["Content-Security-Policy"]
     assert "Content-Security-Policy" not in anon.get("/api/public/info").headers       # JSON gets the other headers only
     assert anon.get("/api/public/info").headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+
+
+def test_handbook_and_ecard_data(admin):
+    anon = TestClient(app)
+    en = anon.get("/help?lang=en"); ml = anon.get("/help")
+    assert en.status_code == 200 and "For office bearers" in en.text and "Applying for membership" in en.text
+    assert "ഭാരവാഹികൾക്ക്" in ml.text and "അംഗത്വത്തിന് അപേക്ഷിക്കൽ" in ml.text
+    j = anon.get("/api/help?lang=ml").json()
+    assert j["lang"] == "ml" and len(j["sections"]) >= 12 and all(x["paragraphs"] for x in j["sections"])
+    mc = login("9847012345", "ramesh-pass-1")
+    me = mc.get("/api/auth/me").json()["member"]
+    d = mc.get(f"/api/members/{me['id']}/card.json").json()
+    assert d["member_no"] == me["member_no"] and d["name_ml"] == "രമേശ് കുമാർ" and d["qr"].startswith("data:image/svg") and d["club_short"]
+    other = admin.get("/api/members?q=Second").json()[0]
+    assert mc.get(f"/api/members/{other['id']}/card.json").status_code == 403
+    assert "ecard" in mc.get(f"/api/members/{me['id']}/card?lang=en").text

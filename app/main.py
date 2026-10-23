@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import auth, comms, db, i18n, push, security
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site
+from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, help as helpdoc
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -442,7 +442,11 @@ def serve_upload(path: str, request: Request):
     if ".." in path or path.startswith("/"):
         raise HTTPException(404)
     if not path.startswith("posts/") and not auth.user_from_request(request):
-        if not (path.startswith("docs/") and db.one("SELECT 1 FROM documents WHERE path=? AND audience='public' AND deleted=0", (path,))):
+        public_doc = path.startswith("docs/") and db.one("SELECT 1 FROM documents WHERE path=? AND audience='public' AND deleted=0", (path,))
+        # office bearers' photos appear on the public website; every other member photo needs a sign-in
+        office_photo = path.startswith("members/") and db.one("SELECT 1 FROM members m JOIN committee_members cm ON cm.member_id=m.id JOIN committees c ON c.id=cm.committee_id "
+                                                              "WHERE m.photo=? AND m.status='active' AND cm.active=1 AND c.kind='executive'", (path,))
+        if not (public_doc or office_photo):
             raise HTTPException(401, "sign in")
     full = os.path.join(db.UPLOAD_DIR, path)
     if not os.path.isfile(full):
@@ -592,4 +596,5 @@ app.include_router(facilities.router)
 app.include_router(payments.router)
 app.include_router(polls.router)
 app.include_router(site.router)
+app.include_router(helpdoc.router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

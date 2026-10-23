@@ -426,63 +426,66 @@ def member_card(mid: int, request: Request, lang: str = "ml"):
     m = db.one("SELECT * FROM members WHERE id=? AND status='active'", (mid,))
     if not m:
         raise HTTPException(404)
-    s = db.settings_all()
-    import html as _h
-    import segno
-    e = _h.escape
-    qr = segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=3, border=1)
-    name = e(i18n.pick(m, "name", lang))
-    club = e(s["club_name_ml" if lang == "ml" else "club_name_en"])
-    place = e(s["club_place_ml" if lang == "ml" else "club_place_en"])
-    types = {t["key"]: t for t in json.loads(s["membership_types"])}
-    mtype = e(types.get(m["membership_type"], {}).get(lang) or m["membership_type"])
-    photo = f"<img class='photo' src='/uploads/{e(m['photo'])}'>" if m["photo"] else "<div class='photo'></div>"
-    m = {**m, "member_no": e(m["member_no"] or ""), "blood_group": e(m["blood_group"]), "joined_on": e(m["joined_on"])}
-    s = {**s, "club_phone": e(s["club_phone"])}
-    lbl = {"en": ("Membership No", "Blood group", "Valid member of", "Joined"), "ml": ("അംഗത്വ നമ്പർ", "രക്തഗ്രൂപ്പ്", "അംഗം", "ചേർന്ന തീയതി")}[lang if lang in ("en", "ml") else "en"]
+    lang = lang if lang in ("en", "ml") else "ml"
+    s = db.settings_all(); types = {t["key"]: t for t in json.loads(s["membership_types"])}
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{m['member_no']}</title>
-<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>body{{font-family:Inter,Manjari,sans-serif;background:#eee;margin:0;display:grid;place-items:center;min-height:100vh}}
-.card{{width:85.6mm;height:54mm;background:#fff;border-radius:3mm;box-shadow:0 2px 12px #0003;position:relative;overflow:hidden;font-size:9pt;color:#222}}
-.band{{background:#0F4C45;color:#fff;padding:3mm 4mm;font-weight:700;font-size:9.5pt;line-height:1.2}}
-.band small{{display:block;font-weight:400;opacity:.85;font-size:7.5pt}}
-.photo{{position:absolute;left:4mm;top:15mm;width:20mm;height:24mm;object-fit:cover;background:#ddd;border-radius:1.5mm}}
-.body{{position:absolute;left:27mm;top:15mm;right:4mm}} .n{{font-weight:700;font-size:11pt}} .k{{color:#777;font-size:7pt;margin-top:1.5mm}}
-.qr{{position:absolute;right:4mm;bottom:3mm;width:16mm}} .foot{{position:absolute;left:4mm;bottom:3mm;font-size:7pt;color:#777}}
-@media print{{body{{background:#fff}}.card{{box-shadow:none;border:.2mm solid #999}}}}</style></head>
-<body><div class="card"><div class="band">{club}<small>{place}</small></div>{photo}
-<div class="body"><div class="n">{name}</div><div>{mtype}</div>
-<div class="k">{lbl[0]}</div><div><b>{m['member_no']}</b></div>
-<div class="k">{lbl[1]} · {lbl[3]}</div><div>{m['blood_group'] or '-'} · {m['joined_on'] or '-'}</div></div>
-<img class="qr" src="{qr}"><div class="foot">{s['club_phone']}</div></div>
-<script>setTimeout(()=>window.print(),400)</script></body></html>"""
+<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>{CARD_CSS}body{{display:grid;place-items:center;min-height:100vh}}</style></head>
+<body>{_card_html(m, s, lang, types)}<script>setTimeout(()=>window.print(),400)</script></body></html>"""
+
+
+# ---------- e-card data ----------
+def card_data(m, lang="ml"):
+    import segno
+    s = db.settings_all()
+    types = {t["key"]: t for t in json.loads(s["membership_types"])}
+    t = types.get(m["membership_type"], {})
+    year = dt.date.today().year
+    valid = "Life" if m["membership_type"] == "life" else f"Dec {year}"
+    return {"id": m["id"], "member_no": m["member_no"], "name_en": m["name_en"], "name_ml": m["name_ml"], "type_en": t.get("en") or m["membership_type"], "type_ml": t.get("ml") or m["membership_type"],
+            "blood_group": m["blood_group"], "joined_on": m["joined_on"], "phone": m["phone"] if m["show_phone"] else "", "ward": m["ward"], "photo": m["photo"], "gender": m["gender"], "dob": m["dob"],
+            "club_en": s["club_name_en"], "club_ml": s["club_name_ml"], "club_short": s["club_short"], "place_en": s["club_place_en"], "place_ml": s["club_place_ml"], "club_phone": s["club_phone"],
+            "reg_no": s["club_reg_no"], "valid": valid, "valid_ml": "ആജീവനാന്തം" if m["membership_type"] == "life" else f"ഡിസം {year}",
+            "qr": segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=4, border=0)}
+
+
+@router.get("/members/{mid}/card.json")
+def member_card_json(mid: int, user=Depends(current_user)):
+    if not (can(user, "members.view") or user.get("member_id") == mid):
+        raise HTTPException(403, "no")
+    m = db.one("SELECT * FROM members WHERE id=? AND status='active'", (mid,))
+    if not m:
+        raise HTTPException(404, "not an active member")
+    return card_data(m)
 
 
 # ---------- batch cards ----------
 def _card_html(m, s, lang, types):
     import html as _h
-    import segno
     e = _h.escape
-    qr = segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=3, border=1)
-    name = e(i18n.pick(m, "name", lang))
-    club = e(s["club_name_ml" if lang == "ml" else "club_name_en"])
-    place = e(s["club_place_ml" if lang == "ml" else "club_place_en"])
-    mtype = e(types.get(m["membership_type"], {}).get(lang) or m["membership_type"])
-    photo = f"<img class='photo' src='/uploads/{e(m['photo'])}'>" if m["photo"] else "<div class='photo'></div>"
-    m = {**m, "member_no": e(m["member_no"] or ""), "blood_group": e(m["blood_group"]), "joined_on": e(m["joined_on"])}
-    s = {**s, "club_phone": e(s["club_phone"])}
-    lbl = {"en": ("Membership No", "Blood group", "Joined"), "ml": ("അംഗത്വ നമ്പർ", "രക്തഗ്രൂപ്പ്", "ചേർന്ന തീയതി")}[lang]
-    return f"""<div class="card"><div class="band">{club}<small>{place}</small></div>{photo}
-<div class="body"><div class="n">{name}</div><div>{mtype}</div><div class="k">{lbl[0]}</div><div><b>{m['member_no']}</b></div>
-<div class="k">{lbl[1]} · {lbl[2]}</div><div>{m['blood_group'] or '-'} · {m['joined_on'] or '-'}</div></div><img class="qr" src="{qr}"><div class="foot">{s['club_phone']}</div></div>"""
+    d = card_data(m, lang)
+    name, other = (d["name_ml"] or d["name_en"], d["name_en"]) if lang == "ml" else (d["name_en"], d["name_ml"])
+    club = d["club_ml"] or d["club_en"] if lang == "ml" else d["club_en"]
+    place = d["place_ml"] or d["place_en"] if lang == "ml" else d["place_en"]
+    mtype = d["type_ml"] if lang == "ml" else d["type_en"]
+    lbl = {"en": ("Member No", "Blood", "Joined", "Valid", "Phone"), "ml": ("അംഗത്വ നമ്പർ", "രക്തം", "ചേർന്നത്", "സാധുത", "ഫോൺ")}[lang]
+    valid = d["valid_ml"] if lang == "ml" else d["valid"]
+    photo = f"<img class='photo' src='/uploads/{e(d['photo'])}'>" if d["photo"] else f"<div class='photo ini'>{e((d['name_en'] or '?')[:1].upper())}</div>"
+    return f"""<div class="ecard"><div class="band"><div class="club">{e(club)}</div><div class="place">{e(place)}</div><div class="short">{e(d['club_short'])}</div><div class="stripe"></div></div>
+{photo}<div class="body"><div class="n">{e(name)}</div><div class="n2">{e(other)}</div><span class="type">{e(mtype)}</span>
+<div class="rows"><div><small>{lbl[0]}</small><b class="no">{e(d['member_no'] or '')}</b></div><div><small>{lbl[1]}</small><b>{e(d['blood_group'] or '-')}</b></div><div><small>{lbl[2]}</small><b>{e(d['joined_on'] or '-')}</b></div><div><small>{lbl[3]}</small><b>{e(valid)}</b></div></div></div>
+<img class="qr" src="{d['qr']}"><div class="foot">{e(d['club_phone'])}{(' · ' + e(d['reg_no'])) if d['reg_no'] else ''}</div></div>"""
 
 
 CARD_CSS = """body{font-family:Inter,Manjari,sans-serif;background:#eee;margin:0;padding:8mm}.sheet{display:grid;grid-template-columns:repeat(2,85.6mm);gap:6mm;justify-content:center}
-.card{width:85.6mm;height:54mm;background:#fff;border-radius:3mm;box-shadow:0 2px 12px #0003;position:relative;overflow:hidden;font-size:9pt;color:#222;page-break-inside:avoid}
-.band{background:#0F4C45;color:#fff;padding:3mm 4mm;font-weight:700;font-size:9.5pt;line-height:1.2}.band small{display:block;font-weight:400;opacity:.85;font-size:7.5pt}
-.photo{position:absolute;left:4mm;top:15mm;width:20mm;height:24mm;object-fit:cover;background:#ddd;border-radius:1.5mm}.body{position:absolute;left:27mm;top:15mm;right:4mm}
-.n{font-weight:700;font-size:11pt}.k{color:#777;font-size:7pt;margin-top:1.5mm}.qr{position:absolute;right:4mm;bottom:3mm;width:16mm}.foot{position:absolute;left:4mm;bottom:3mm;font-size:7pt;color:#777}
-@media print{body{background:#fff;padding:0}.card{box-shadow:none;border:.2mm solid #999}}"""
+.ecard{width:85.6mm;height:54mm;background:#fff;border-radius:3mm;box-shadow:0 2px 12px #0003;position:relative;overflow:hidden;font-size:8.5pt;color:#1D2A28;page-break-inside:avoid;font-family:Inter,Manjari,sans-serif}
+.band{position:absolute;left:0;top:0;right:0;height:17mm;background:linear-gradient(120deg,#0F4C45,#196B61 70%,#2A8C7F);color:#fff;padding:3mm 4mm}.band .club{font-weight:700;font-size:9.5pt;line-height:1.15;max-width:62mm}
+.band .place{font-size:7pt;opacity:.85;margin-top:.5mm}.band .short{position:absolute;right:4mm;top:3mm;background:rgba(255,255,255,.18);border-radius:2mm;padding:.5mm 2mm;font-weight:700;font-size:8pt;font-family:Inter}
+.band .stripe{position:absolute;left:0;right:0;bottom:0;height:1.2mm;background:#C9542A}
+.photo{position:absolute;left:4mm;top:13mm;width:22mm;height:26mm;object-fit:cover;border-radius:2mm;border:1mm solid #fff;box-shadow:0 1mm 3mm #0003;background:#EEF2EF}.photo.ini{display:grid;place-items:center;font-size:22pt;font-weight:700;color:#0F4C45;font-family:Inter}
+.body{position:absolute;left:29mm;top:19mm;right:4mm}.n{font-weight:700;font-size:11pt;line-height:1.15}.n2{font-size:7.5pt;color:#5B6B68}.type{display:inline-block;margin-top:1mm;background:#FBE9E1;color:#C9542A;border-radius:99mm;padding:0 2mm;font-size:7pt;font-weight:700}
+.rows{display:grid;grid-template-columns:1fr 1fr;gap:1mm 3mm;margin-top:2mm}.rows small{display:block;color:#8a948f;font-size:6pt;text-transform:uppercase;letter-spacing:.04em}.rows b{font-size:8pt}.rows .no{font-family:Inter;font-size:9pt;color:#0F4C45}
+.qr{position:absolute;right:4mm;bottom:4mm;width:15mm;height:15mm}.foot{position:absolute;left:4mm;bottom:2.5mm;font-size:6pt;color:#8a948f}
+@media print{body{background:#fff;padding:0}.ecard{box-shadow:none;border:.2mm solid #999}}"""
 
 
 @router.get("/members/print/cards", response_class=HTMLResponse)
