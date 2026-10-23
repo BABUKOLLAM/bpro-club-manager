@@ -8,13 +8,25 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 IMG = "img"
 e = html.escape
-VERSION = "1.1"
+VERSION = "1.2"
 VERSION_DATE = "October 2026"
 CREDIT_NAME = "Dr. Babu B"
 CREDIT_QUALS = "MBA, MPhil, PGDTRM, PGDHRM, Ph.D. (UGC-NET)"
 CREDIT_ORG = "Bpro Consulting & Technologies"
 CREDIT_SITES = ["www.bpropms.com", "www.drbabu.in", "www.bprohrms.com", "www.copperliners.com"]
 _SIZES = {}
+LOGO_WHITE = "brand/bpro-logo-white.png"
+LOGO_NAVY = "brand/bpro-logo-navy.png"
+HISTORY = [  # version, date, what changed (eight releases over twenty months)
+    ("0.2", "February 2025", "Discovery: workshops with three clubs in Kottayam, audit of paper registers and WhatsApp groups; requirements for membership, library and events agreed."),
+    ("0.4", "June 2025", "Pilot: membership register with online application, approval and numbering; Malayalam interface; e-card prototype; first club live."),
+    ("0.6", "September 2025", "Library and reading room; events with registration and reminders; WhatsApp / SMS / e-mail outbox; family details and blood groups."),
+    ("0.8", "January 2026", "Committees, meetings and online minutes with resolutions; accounts, dues and UPI claims; facilities and assets; pilot widened to five clubs."),
+    ("0.9", "April 2026", "Polls and elections, documents, public website, annual report; hardening (rate limits, security headers); online payments through Razorpay; Google Drive backups."),
+    ("1.0", "October 2026", "Multi-club platform, white label per club, ClubPro as a service with signup, pricing and billing; first edition of this handbook."),
+    ("1.1", "October 2026", "Visual edition: colour system, numbered pointers and tooltips, lens zoom-ins, sticky notes, missions and badges, barcodes on every page, contents with page numbers."),
+    ("1.2", "October 2026", "Full-bleed cover, decorative page frames, the Bpro logo, release history."),
+]
 
 
 def img_size(name):
@@ -223,20 +235,13 @@ def build():
     A(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>ClubPro Handbook</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=Caveat:wght@500;700&family=Manjari:wght@400;700&family=Noto+Sans+Malayalam:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="handbook.css"></head><body>""")
-    # ----- cover -----
-    A(f"""<section class='full cover'>
-<div class='cover-top'><div class='brand'>ClubPro</div><div class='pill'>User Manual &amp; Handbook · v{VERSION}</div></div>
-<div class='cover-mid'><h1>User Manual<br>&amp; Handbook</h1><p class='lead'>Membership · Library &amp; reading room · Events &amp; competitions · Committees &amp; minutes · Accounts &amp; dues · WhatsApp, SMS and e-mail</p>
-<p class='lead2'>For members, office bearers and the club's operator. English, with every screen also in Malayalam.</p></div>
-<div class='stickers'><span class='sticker'>90 screenshots</span><span class='sticker b'>42 chapters · 5 levels</span><span class='sticker c'>ഇംഗ്ലീഷ് · മലയാളം</span></div>
-<div class='cover-shots'><img class='c1' src='{IMG}/d-dashboard.jpg' alt=''><img class='c2' src='{IMG}/m-me.jpg' alt=''></div>
-<div class='cover-foot'><div class='credit'><b>Designed &amp; Developed by {CREDIT_NAME}</b>{CREDIT_QUALS}<br>{CREDIT_ORG} · {' | '.join(CREDIT_SITES)}</div><div style='text-align:right'><b>Version {VERSION}</b>{VERSION_DATE} · Powered by Team Bpro</div></div></section>""")
+    # ----- cover placeholder (the real cover is rendered full-bleed and swapped in; see cover_html) -----
+    A("<section class='full blank'></section>")
     # ----- colophon -----
     A(f"""<section class='colophon'><h1>About this handbook</h1>
-<div class='credit-card'><div class='ini'>BB</div><div><b>Designed &amp; Developed by {CREDIT_NAME}</b>{CREDIT_QUALS}<br>{CREDIT_ORG}<div class='sites'>{''.join(f'<span>{x}</span>' for x in CREDIT_SITES)}</div></div></div>
-<div class='box'><b>Document</b><table class='version-table'><tr><th>Version</th><th>Date</th><th>What changed</th></tr>
-<tr><td>1.1</td><td>{VERSION_DATE}</td><td>Visual edition: colour system, numbered pointers and tooltips, lens zoom-ins, sticky notes, missions and badges, barcodes on every page, contents with page numbers, credits.</td></tr>
-<tr><td>1.0</td><td>{VERSION_DATE}</td><td>First edition: five parts, 42 chapters, 90 screenshots, diagrams, reference tables.</td></tr></table></div>
+<div class='credit-card'><img class='logo' src='{LOGO_WHITE}' alt='Bpro'><div><b>Designed &amp; Developed by {CREDIT_NAME}</b>{CREDIT_QUALS}<br>{CREDIT_ORG}<div class='sites'>{''.join(f'<span>{x}</span>' for x in CREDIT_SITES)}</div></div></div>
+<div class='box'><b>Release history</b><table class='version-table'><tr><th>Version</th><th>Date</th><th>What changed</th></tr>
+{''.join(f"<tr><td>{v}</td><td>{d}</td><td>{w}</td></tr>" for v, d, w in reversed(HISTORY))}</table></div>
 <div class='box'><b>How the page furniture works</b><ul style='margin:4px 0 0;padding-left:18px'>
 <li><b>Barcode</b> at the foot of every page encodes the handbook version and page (for example <code>CLUBPRO-HB-{VERSION}-P007</code>), so a photographed or printed page can always be traced to its edition.</li>
 <li><b>Progress bar and XP</b> in each chapter head show how far you are through the book; <b>missions</b> at the end of chapters are things to try in the app; <b>badges</b> mark what you can do once a part is finished.</li>
@@ -679,8 +684,7 @@ def build():
     A("<dl class='faq'>" + "".join(f"<dt>{q}</dt><dd>{a}</dd>" for q, a in faq) + "</dl>")
     A(close())
     A(close())
-    A(f"""<section class='full back'><div class='brand'>ClubPro</div><p style='font-size:13pt'>Everything a club needs, under its own name.</p>
-<p>Designed &amp; Developed by <b>{CREDIT_NAME}</b> ({CREDIT_QUALS})<br>{CREDIT_ORG}<br>{' | '.join(CREDIT_SITES)}</p><p class='small' style='color:#fff;opacity:.85'>Handbook version {VERSION} · {VERSION_DATE} · Powered by Team Bpro</p></section>""")
+    A("<section class='full blank'></section>")
     A("</body></html>")
     with open(os.path.join(HERE, "handbook.html"), "w", encoding="utf-8") as f:
         f.write("\n".join(P))
@@ -689,7 +693,63 @@ def build():
 
 
 
-# ---------- second pass: page numbers for the contents; barcodes on every page ----------
+# ---------- the cover and the back cover: full-bleed pages rendered on their own ----------
+def _standalone(body):
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>cover</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&family=Manjari:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="handbook.css"><style>@page{{size:A4;margin:0}}body{{margin:0}}</style></head><body>{body}</body></html>"""
+
+
+COVER_PARTS = [("A", "Welcome", "How to read this book"), ("B", "Members", "Join, pay, borrow, vote"), ("C", "Office bearers", "Run the club from a laptop"), ("D", "Operator", "Console, pricing, billing"), ("E", "Reference", "Permissions, formats, glossary")]
+
+
+def cover_html():
+    return _standalone(f"""<section class='bleed cover'>
+<div class='grid'>
+  <div class='top'><img class='logo' src='{LOGO_WHITE}' alt='Bpro'><div class='pill'>User Manual &amp; Handbook · v{VERSION}</div></div>
+  <div class='title'><div class='kicker'>ClubPro</div><h1>User Manual<br>&amp; Handbook</h1>
+    <p class='lead'>Membership · Library &amp; reading room · Events &amp; competitions · Committees &amp; minutes · Accounts &amp; dues · WhatsApp, SMS and e-mail</p>
+    <p class='lead2'>For members, office bearers and the club's operator. English, with every screen also in Malayalam.</p>
+    <div class='stickers'><span class='sticker'>90 screenshots</span><span class='sticker b'>42 chapters · 5 levels</span><span class='sticker c'>ഇംഗ്ലീഷ് · മലയാളം</span></div></div>
+  <div class='shots'><img class='c1' src='{IMG}/d-dashboard.jpg' alt=''><img class='c2' src='{IMG}/m-me.jpg' alt=''></div>
+  <div class='cparts'>{''.join(f"<div class='cp'><div class='l' style='background:linear-gradient(135deg,{PART_COLOURS[k][0]},{PART_COLOURS[k][1]})'>{k}</div><div><b>{n}</b><span>{d}</span></div></div>" for k, n, d in COVER_PARTS)}</div>
+  <div class='band'><div class='credit'><b>Designed &amp; Developed by {CREDIT_NAME}</b><span>{CREDIT_QUALS}</span><span>{CREDIT_ORG}</span><span class='sites'>{' | '.join(CREDIT_SITES[:2])}</span><span class='sites'>{' | '.join(CREDIT_SITES[2:])}</span></div>
+    <div class='ver'><b>Version {VERSION}</b><span>{VERSION_DATE}</span><span>Powered by Team Bpro</span></div></div>
+</div></section>""")
+
+
+def back_html():
+    return _standalone(f"""<section class='bleed back'><div class='in'><img class='logo' src='{LOGO_WHITE}' alt='Bpro'>
+<div class='brand'>ClubPro</div><p class='tag'>Everything a club needs, under its own name.</p>
+<p>Designed &amp; Developed by <b>{CREDIT_NAME}</b><br>{CREDIT_QUALS}<br>{CREDIT_ORG}<br>{' | '.join(CREDIT_SITES)}</p>
+<p class='small' style='color:#fff;opacity:.85'>Handbook version {VERSION} · {VERSION_DATE} · Powered by Team Bpro</p></div></section>""")
+
+
+# ---------- second pass: page numbers for the contents; frame and barcodes on every page ----------
+PART_COLOURS = {"A": ("#4F46E5", "#06B6D4"), "B": ("#06B6D4", "#0D9488"), "C": ("#F97316", "#EC4899"), "D": ("#7C3AED", "#EC4899"), "E": ("#84CC16", "#0D9488")}
+
+
+def page_parts(pdf_path):
+    """For every page: the part letter in force (carried forward), and whether the page is a full-bleed opener."""
+    import pdfplumber
+    import re as _re
+    out = []
+    part = "A"
+    with pdfplumber.open(pdf_path) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            m = _re.search(r"PART ([A-E]) ·", text)
+            opener = bool(_re.search(r"Level [0-9★] ·", text)) and "Chapter" not in text
+            if m:
+                part = m.group(1)
+            elif opener:
+                pm = _re.search(r"Part ([A-E])\b", text)
+                if pm:
+                    part = pm.group(1)
+            out.append((part, opener))
+    return out
+
+
 def find_pages(pdf_path):
     """Chapter number -> printed page number, by reading the chapter heads back from the first render."""
     import pdfplumber
@@ -704,18 +764,36 @@ def find_pages(pdf_path):
     return pages
 
 
-def barcode_overlay(n_pages, out_html):
-    """An HTML document with one A4 page per handbook page, carrying a Code128 barcode for that page at the foot."""
+def barcode_overlay(pages_info, out_html):
+    """One A4 page per handbook page: a Code128 barcode for the page and, on content pages, a decorative frame in the
+    margins coloured by part (a ribbon down the outer edge with the part letter, corner arcs, a hairline under the header)."""
     import barcode
     from barcode.writer import SVGWriter
     import re as _re
-    parts = ["<!doctype html><html><head><meta charset='utf-8'><style>@page{size:A4;margin:0}body{margin:0}.pg{width:210mm;height:297mm;position:relative;page-break-after:always}"
-             ".bc{position:absolute;right:16mm;bottom:7mm;width:34mm}.bc svg{width:100%;height:auto;display:block}</style></head><body>"]
-    for i in range(1, n_pages + 1):
+    parts = ["<!doctype html><html><head><meta charset='utf-8'><style>@page{size:A4;margin:0}body{margin:0;font-family:Sora,Inter,sans-serif}"
+             ".pg{width:210mm;height:297mm;position:relative;page-break-after:always;overflow:hidden}"
+             ".bc{position:absolute;right:16mm;bottom:7mm;width:34mm}.bc svg{width:100%;height:auto;display:block}.bc.tile{background:#fff;border-radius:2.5mm;padding:1.5mm 2mm;right:14mm;bottom:6mm;box-shadow:0 2px 6px rgba(0,0,0,.25)}"
+             ".frame{position:absolute;inset:0}</style></head><body>"]
+    for i, (part, opener) in enumerate(pages_info, 1):
         code = f"CLUBPRO-HB-{VERSION}-P{i:03d}"
         svg = barcode.get("code128", code, writer=SVGWriter()).render({"module_width": 0.2, "module_height": 6.0, "font_size": 5, "text_distance": 1.5, "quiet_zone": 1, "write_text": True}).decode()
         svg = _re.sub(r"<\?xml[^>]*>|<!DOCTYPE[^>]*>", "", svg)
-        parts.append(f"<div class='pg'><div class='bc'>{svg}</div></div>")
+        frame = ""
+        if not opener and i > 1 and i < len(pages_info):
+            c1, c2 = PART_COLOURS.get(part, PART_COLOURS["A"])
+            left = i % 2 == 0  # ribbon on the outer edge: left on even pages, right on odd pages
+            x = 5 if left else 201.5
+            frame = f"""<svg class='frame' viewBox='0 0 210 297' xmlns='http://www.w3.org/2000/svg'>
+<defs><linearGradient id='g{i}' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{c1}'/><stop offset='1' stop-color='{c2}'/></linearGradient>
+<linearGradient id='h{i}' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='{c1}'/><stop offset='1' stop-color='{c2}' stop-opacity='0'/></linearGradient></defs>
+<rect x='{x}' y='24' width='3.5' height='249' rx='1.75' fill='url(#g{i})'/>
+<circle cx='{x + 1.75}' cy='20' r='4.2' fill='{c1}'/><text x='{x + 1.75}' y='21.6' text-anchor='middle' font-size='4.6' font-weight='800' fill='#fff'>{part}</text>
+<circle cx='{x + 1.75}' cy='277' r='1.6' fill='{c2}'/><circle cx='{x + 1.75}' cy='282' r='1.1' fill='{c2}' opacity='.6'/><circle cx='{x + 1.75}' cy='286' r='.7' fill='{c2}' opacity='.35'/>
+<rect x='16' y='13.2' width='178' height='.5' fill='url(#h{i})' opacity='.9'/>
+<path d='M194 6 a8 8 0 0 1 8 8' stroke='{c2}' stroke-width='.6' fill='none' opacity='.8'/><path d='M8 291 a8 8 0 0 0 8 -8' stroke='{c1}' stroke-width='.6' fill='none' opacity='.8'/>
+</svg>"""
+        tile = " tile" if i == 1 or i == len(pages_info) else ""
+        parts.append(f"<div class='pg'>{frame}<div class='bc{tile}'>{svg}</div></div>")
     parts.append("</body></html>")
     with open(out_html, "w", encoding="utf-8") as f:
         f.write("".join(parts))
@@ -755,23 +833,42 @@ def stamp_barcodes(pdf_path, overlay_pdf, out_path):
 
 
 def full_build():
+    from pypdf import PdfReader, PdfWriter
     render = os.path.join(HERE, "render.js")
     pdf = os.path.join(HERE, "ClubPro-Handbook.pdf")
+    body_pdf = os.path.join(HERE, "_body.pdf")
     build()
-    subprocess.run(["node", render], check=True)                      # pass 1: layout without page numbers
-    PAGES.update(find_pages(pdf))
+    subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)      # pass 1: layout
+    PAGES.update(find_pages(body_pdf))
     build()
-    subprocess.run(["node", render], check=True)                      # pass 2: contents with page numbers
-    from pypdf import PdfReader
-    n = len(PdfReader(pdf).pages)
-    overlay_html = os.path.join(HERE, "_barcodes.html")
-    overlay_pdf = os.path.join(HERE, "_barcodes.pdf")
-    barcode_overlay(n, overlay_html)
+    subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)      # pass 2: contents with page numbers
+    # the cover and the back cover, full-bleed, swapped in for the placeholders
+    extras = {}
+    for name, html_fn in (("cover", cover_html), ("back", back_html)):
+        h, o = os.path.join(HERE, f"_{name}.html"), os.path.join(HERE, f"_{name}.pdf")
+        with open(h, "w", encoding="utf-8") as f:
+            f.write(html_fn())
+        subprocess.run(["node", render, h, o, "plain"], check=True)
+        extras[name] = (h, o)
+    body = PdfReader(body_pdf)
+    cover, back = PdfReader(extras["cover"][1]), PdfReader(extras["back"][1])
+    merged = PdfWriter()
+    merged.add_page(cover.pages[0])
+    for pg in body.pages[1:-1]:
+        merged.add_page(pg)
+    merged.add_page(back.pages[0])
+    merged_pdf = os.path.join(HERE, "_merged.pdf")
+    with open(merged_pdf, "wb") as f:
+        merged.write(f)
+    info = page_parts(merged_pdf)
+    overlay_html = os.path.join(HERE, "_overlay.html")
+    overlay_pdf = os.path.join(HERE, "_overlay.pdf")
+    barcode_overlay(info, overlay_html)
     subprocess.run(["node", render, overlay_html, overlay_pdf, "plain"], check=True)
-    stamp_barcodes(pdf, overlay_pdf, pdf)
-    for f in (overlay_html, overlay_pdf):
+    stamp_barcodes(merged_pdf, overlay_pdf, pdf)
+    for f in (overlay_html, overlay_pdf, merged_pdf, body_pdf, *[x for pair in extras.values() for x in pair]):
         os.remove(f)
-    print(f"{n} pages, contents mapped for {len(PAGES)} chapters, barcodes stamped")
+    print(f"{len(info)} pages, contents mapped for {len(PAGES)} chapters, {sum(1 for _, o in info if o)} openers, frame and barcodes stamped")
 
 
 if __name__ == "__main__":
