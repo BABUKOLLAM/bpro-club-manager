@@ -6,14 +6,15 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import secrets
 import time
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, comms, db, i18n, push, security
+from . import auth, comms, db, i18n, push, security, tenancy
 from .auth import can, current_user, require
 from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, help as helpdoc
 
@@ -23,15 +24,38 @@ STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
 @contextlib.asynccontextmanager
 async def _lifespan(_app):
-    db.init()
+    db.init_all()
     bootstrap_admin()
     comms.start_worker()
     scheduler.start()
     yield
 
 
+class TenantMiddleware:
+    """Pick the club from the Host header before anything else runs; the choice follows the request through the
+    thread pool and the database layer via a context variable."""
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
+        path = scope.get("path", "")
+        slug = tenancy.resolve(headers.get("host", ""))
+        if slug is None and not (path == "/healthz" or path.startswith("/_platform") or path.startswith("/api/_platform") or path.startswith("/static/")):
+            resp = JSONResponse({"error": "no club at this address"}, status_code=404) if path.startswith("/api/") else HTMLResponse("<h1>No club at this address</h1>", status_code=404)
+            return await resp(scope, receive, send)
+        token = tenancy.current.set(slug or "default")
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            tenancy.current.reset(token)
+
+
 app = FastAPI(title="Club", docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
 app.add_middleware(security.EdgeMiddleware)
+app.add_middleware(TenantMiddleware)
 
 
 def bootstrap_admin():
@@ -404,7 +428,7 @@ def save_upload(upload: UploadFile, folder, max_mb=8):
     if len(data) > max_mb * 1024 * 1024:
         raise HTTPException(400, f"file over {max_mb} MB")
     rel = os.path.join(folder, dt.date.today().strftime("%Y%m"), secrets.token_hex(8) + ALLOWED[mime])
-    path = os.path.join(db.UPLOAD_DIR, rel)
+    path = os.path.join(db.upload_dir(), rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if mime.startswith("image/"):
         # every image is decoded and re-encoded: whatever was uploaded, what we store is a plain JPEG / PNG / WebP
@@ -434,7 +458,7 @@ def upload(folder: str, file: UploadFile = File(...), user=Depends(current_user)
     if folder in ("posts", "books", "docs") and not (can(user, "posts.manage") or can(user, "library.manage")):
         raise HTTPException(403, "no")
     rel, mime = save_upload(file, folder, max_mb=20 if folder == "docs" else 8)
-    return {"path": rel, "mime": mime, "url": f"/uploads/{rel}", "size": os.path.getsize(os.path.join(db.UPLOAD_DIR, rel))}
+    return {"path": rel, "mime": mime, "url": f"/uploads/{rel}", "size": os.path.getsize(os.path.join(db.upload_dir(), rel))}
 
 
 @app.get("/uploads/{path:path}")
@@ -448,7 +472,7 @@ def serve_upload(path: str, request: Request):
                                                               "WHERE m.photo=? AND m.status='active' AND cm.active=1 AND c.kind='executive'", (path,))
         if not (public_doc or office_photo):
             raise HTTPException(401, "sign in")
-    full = os.path.join(db.UPLOAD_DIR, path)
+    full = os.path.join(db.upload_dir(), path)
     if not os.path.isfile(full):
         raise HTTPException(404)
     return FileResponse(full, headers={"Cache-Control": "private, max-age=86400"})
@@ -563,6 +587,89 @@ def audit_log(limit: int = 300, user=Depends(require("settings.manage"))):
 @app.get("/api/dashboard")
 def dashboard(user=Depends(current_user)):
     return reports.dashboard(user)
+
+
+# ---------- platform (multi-club) ----------
+def _master(request: Request):
+    key = os.environ.get("CLUB_MASTER_KEY", "")
+    if not key:
+        raise HTTPException(404)
+    if not secrets.compare_digest(request.headers.get("X-Master-Key", ""), key):
+        time.sleep(0.3)
+        raise HTTPException(403, "master key")
+
+
+@app.get("/api/_platform/tenants")
+def platform_list(request: Request):
+    _master(request)
+    reg = tenancy.registry()
+    rows = []
+    for slug in tenancy.all_slugs():
+        t = reg.get("tenants", {}).get(slug, {"name": "default", "domains": reg.get("default_domains", []), "active": True})
+        try:
+            st = tenancy.stats(slug)
+        except Exception as e:  # noqa: BLE001
+            st = {"error": str(e)[:100]}
+        rows.append({"slug": slug, **t, **st})
+    return {"tenants": rows, "strict": bool(reg.get("strict")), "base_domain": os.environ.get("CLUB_BASE_DOMAIN", "")}
+
+
+@app.post("/api/_platform/tenants")
+async def platform_create(request: Request):
+    _master(request)
+    b = await request.json()
+    try:
+        t = tenancy.create(b.get("slug"), b.get("name_en") or "", b.get("name_ml") or "", b.get("domains") or [], b.get("admin_login") or "", b.get("admin_password") or "", b.get("short") or "")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "tenant": t}
+
+
+@app.post("/api/_platform/tenants/{slug}")
+async def platform_update(slug: str, request: Request):
+    _master(request)
+    b = await request.json()
+    try:
+        t = tenancy.update(slug, domains=b.get("domains"), active=b.get("active"), name=b.get("name"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "tenant": t}
+
+
+@app.post("/api/_platform/settings")
+async def platform_settings(request: Request):
+    _master(request)
+    b = await request.json()
+    reg = tenancy.registry()
+    if "strict" in b:
+        reg["strict"] = bool(b["strict"])
+    if "default_domains" in b:
+        reg["default_domains"] = [d.strip().lower() for d in (b["default_domains"] or []) if d and d.strip()]
+    tenancy.save_registry(reg)
+    return {"ok": True}
+
+
+@app.get("/api/_platform/ask")
+def platform_ask(domain: str = ""):
+    """Caddy on-demand TLS 'ask' hook: 200 when the domain belongs to a registered club, 404 otherwise."""
+    host = (domain or "").split(":")[0].strip().lower()
+    if not host or host == "localhost" or re.fullmatch(r"[0-9.]+", host):
+        raise HTTPException(404)
+    reg = tenancy.registry()
+    known = {d.lower() for d in reg.get("default_domains", [])}
+    for t in reg.get("tenants", {}).values():
+        if t.get("active", True):
+            known.update(d.lower() for d in t.get("domains", []))
+    if host in known or tenancy.resolve(host) not in (None, "default"):
+        return PlainTextResponse("ok")
+    raise HTTPException(404)
+
+
+@app.get("/_platform", response_class=HTMLResponse)
+def platform_page():
+    if not os.environ.get("CLUB_MASTER_KEY"):
+        raise HTTPException(404)
+    return FileResponse(os.path.join(STATIC, "platform.html"), headers={"Cache-Control": "no-cache"})
 
 
 # ---------- backups ----------

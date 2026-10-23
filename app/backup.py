@@ -27,7 +27,8 @@ def set_drive_fake(upload=None, list_=None, delete=None):
 
 
 def backup_dir():
-    return os.environ.get("CLUB_BACKUP_DIR") or os.path.join(db.DATA_DIR, "backups")
+    base = os.environ.get("CLUB_BACKUP_DIR") or os.path.join(db.DATA_DIR, "backups")
+    return base if db.slug() == "default" else os.path.join(base, db.slug())
 
 
 def drive_configured():
@@ -47,8 +48,8 @@ def make_local():
     dst.close()
     tgz = os.path.join(out, f"uploads-{stamp}.tgz")
     with tarfile.open(tgz, "w:gz") as tar:
-        if os.path.isdir(db.UPLOAD_DIR):
-            tar.add(db.UPLOAD_DIR, arcname="uploads")
+        if os.path.isdir(db.upload_dir()):
+            tar.add(db.upload_dir(), arcname="uploads")
     rotate_local(int(db.setting("backup_keep") or 14))
     return [dbp, tgz]
 
@@ -134,15 +135,16 @@ def run(reason="manual"):
     """Local backup, then Drive upload with retention. The outcome is kept in settings for the Settings screen."""
     started = time.time()
     result = {"at": started, "reason": reason, "files": [], "drive": None, "error": ""}
+    prefix = "" if db.slug() == "default" else db.slug() + "-"
     try:
         paths = make_local()
         result["files"] = [os.path.basename(p) for p in paths]
         if drive_configured():
-            ids = [drive_upload(os.path.basename(p), p) for p in paths]
+            ids = [drive_upload(prefix + os.path.basename(p), p) for p in paths]
             keep = int(db.setting("backup_keep") or 14)
             removed = 0
-            for prefix in ("club-", "uploads-"):
-                ours = sorted((f for f in drive_list() if (f.get("name") or "").startswith(prefix)), key=lambda f: f.get("name"))
+            for kind in ("club-", "uploads-"):
+                ours = sorted((f for f in drive_list() if (f.get("name") or "").startswith(prefix + kind)), key=lambda f: f.get("name"))
                 for f in ours[:-keep] if keep > 0 else []:
                     try:
                         drive_delete(f["id"]); removed += 1

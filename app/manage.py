@@ -1,4 +1,5 @@
 """Command line chores: python -m app.manage create-admin LOGIN PASSWORD [NAME] | seed-demo | daily
+                      | tenants | tenant-add SLUG "Club name" DOMAIN ADMIN_LOGIN ADMIN_PASSWORD [SHORT]
 
 seed-demo fills an empty database with a handful of members, committees, posts and books so the screens have
 something to show. It never runs against a database that already has members."""
@@ -77,6 +78,15 @@ if __name__ == "__main__":
         create_admin(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else "Administrator")
     elif cmd == "seed-demo":
         seed_demo()
+    elif cmd == "tenant-add" and len(sys.argv) >= 6:
+        # python -m app.manage tenant-add SLUG "Club name" DOMAIN ADMIN_LOGIN ADMIN_PASSWORD [SHORT]
+        from . import tenancy
+        t = tenancy.create(sys.argv[2], sys.argv[3], "", [sys.argv[4]], sys.argv[5], sys.argv[6] if len(sys.argv) > 6 else "", sys.argv[7] if len(sys.argv) > 7 else "")
+        print("club created:", sys.argv[2], t)
+    elif cmd == "tenants":
+        from . import tenancy
+        for s in tenancy.all_slugs():
+            print(s, tenancy.stats(s))
     elif cmd == "daily":
         from . import scheduler
         db.init(); print(scheduler.run_daily(force=True))

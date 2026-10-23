@@ -881,3 +881,71 @@ def test_handbook_and_ecard_data(admin):
     other = admin.get("/api/members?q=Second").json()[0]
     assert mc.get(f"/api/members/{other['id']}/card.json").status_code == 403
     assert "ecard" in mc.get(f"/api/members/{me['id']}/card?lang=en").text
+
+
+# ====================== multi-club ======================
+def test_multi_club_isolation(admin):
+    from app import tenancy
+    os.environ["CLUB_MASTER_KEY"] = "master-key-1"
+    try:
+        anon = TestClient(app)
+        assert anon.get("/api/_platform/tenants").status_code == 403
+        MK = {"X-Master-Key": "master-key-1"}
+        before = anon.get("/api/_platform/tenants", headers=MK).json()
+        n_default = db.conn().execute("select count(*) from members where status='active'").fetchone()[0]
+        assert [t["slug"] for t in before["tenants"]] == ["default"] and before["tenants"][0]["members"] == n_default
+        r = anon.post("/api/_platform/tenants", json={"slug": "kasc", "name_en": "Kottayam Arts & Sports Club", "name_ml": "കോട്ടയം ആർട്സ് & സ്പോർട്സ് ക്ലബ്ബ്", "short": "KSC",
+                                                     "domains": ["kasc.test"], "admin_login": "sec@kasc.test", "admin_password": "kasc-admin-1"}, headers=MK)
+        assert r.status_code == 200, r.text
+        assert anon.post("/api/_platform/tenants", json={"slug": "Bad Slug", "name_en": "x", "admin_login": "a@b", "admin_password": "12345678"}, headers=MK).status_code == 400
+        assert anon.post("/api/_platform/tenants", json={"slug": "other", "name_en": "x", "domains": ["kasc.test"], "admin_login": "a@b", "admin_password": "12345678"}, headers=MK).status_code == 400
+        # the new club is reached by its host name and starts empty, with its own admin and settings
+        k = TestClient(app, base_url="http://kasc.test")
+        info = k.get("/api/public/info").json()
+        assert info["club_short"] == "KSC" and info["club_name_ml"].startswith("കോട്ടയം")
+        assert k.post("/api/auth/login", json={"login": "admin@club.test", "password": "admin-password-1"}, headers=H).status_code == 401   # the default club's admin does not exist here
+        assert k.post("/api/auth/login", json={"login": "sec@kasc.test", "password": "kasc-admin-1"}, headers=H).status_code == 200
+        assert k.get("/api/members?status=active").json() == []
+        r = k.post("/api/members", json={"name_en": "Kottayam Member", "phone": "9111222333", "membership_type": "life"}, headers=H)
+        assert r.status_code == 200 and r.json()["member_no"].startswith("KSC/")
+        # ...and nothing leaks across: the default club does not see it, the new club does not see the default's members
+        assert all(m["name_en"] != "Kottayam Member" for m in admin.get("/api/members?status=active").json())
+        assert [m["name_en"] for m in k.get("/api/members?status=active").json()] == ["Kottayam Member"]
+        assert admin.get("/api/members?q=Kottayam").json() == [] and k.get("/api/members?q=Ramesh").json() == []
+        # uploads and messages live with their club; the outbox worker visits every club
+        fresh()
+        k.post("/api/broadcast", json={"audience": {"kind": "all"}, "channels": ["whatsapp"], "subject": "Hi", "body_en": "Hello Kottayam"}, headers=H)
+        n = 0
+        for slug in tenancy.all_slugs():
+            with tenancy.use(slug):
+                n += comms.process_outbox(100)
+        assert n >= 1 and any("Hello Kottayam" in body for *_, body in SENT)
+        assert k.get("/api/outbox").json()["counts"].get("sent") == 1 and "Hello Kottayam" not in str(admin.get("/api/outbox").json()["rows"][:3])
+        # the public site and links use the club's own domain
+        with tenancy.use("kasc"):
+            assert comms.club_ctx()["link"] == "https://kasc.test"
+        assert "Kottayam Arts" in k.get("/site?lang=en").text and "Kottayam Arts" not in admin.get("/site?lang=en").text
+        # an unknown host falls back to the default club unless routing is strict
+        assert TestClient(app, base_url="http://nobody.test").get("/api/public/info").json()["club_short"] != "KSC"
+        anon.post("/api/_platform/settings", json={"strict": True, "default_domains": ["club.test"]}, headers=MK)
+        assert TestClient(app, base_url="http://nobody.test").get("/api/public/info").status_code == 404
+        assert TestClient(app, base_url="http://club.test").get("/api/public/info").status_code == 200
+        assert TestClient(app, base_url="http://nobody.test").get("/healthz").status_code == 200
+        # Caddy's on-demand TLS hook: certificates only for registered domains, no master key needed
+        assert anon.get("/api/_platform/ask", params={"domain": "kasc.test"}).status_code == 200
+        assert anon.get("/api/_platform/ask", params={"domain": "KASC.TEST:443"}).status_code == 200
+        assert anon.get("/api/_platform/ask", params={"domain": "club.test"}).status_code == 200
+        assert anon.get("/api/_platform/ask", params={"domain": "nobody.test"}).status_code == 404
+        assert anon.get("/api/_platform/ask").status_code == 404
+        # deactivating a club takes it off the air; the platform listing shows both
+        anon.post("/api/_platform/tenants/kasc", json={"active": False}, headers=MK)
+        assert k.get("/api/public/info").status_code == 404
+        assert anon.get("/api/_platform/ask", params={"domain": "kasc.test"}).status_code == 404
+        anon.post("/api/_platform/tenants/kasc", json={"active": True}, headers=MK)
+        anon.post("/api/_platform/settings", json={"strict": False, "default_domains": []}, headers=MK)
+        lst = anon.get("/api/_platform/tenants", headers=MK).json()["tenants"]
+        assert {t["slug"]: t.get("members") for t in lst}["kasc"] == 1
+        assert anon.get("/_platform").status_code == 200
+    finally:
+        os.environ.pop("CLUB_MASTER_KEY", None)
+    assert anon.get("/_platform").status_code == 404

@@ -108,6 +108,25 @@ share a Drive folder with the service account's e-mail, then set `CLUB_GDRIVE_SA
 **Web Push**: nothing to configure - the VAPID key pair is generated on first use and kept in the database. Members
 turn notifications on under *My profile → Notification preferences* (the app must be served over HTTPS).
 
+## Multi-club edition
+
+One installation can serve many clubs. Each club has its own database, uploads and backups under
+`data/tenants/<slug>/`, its own administrators and settings, and is chosen by the domain the visitor used. The
+club that existed before stays the *default* club in `data/`, so a single-club installation keeps working unchanged.
+
+1. Set `CLUB_MASTER_KEY` (a long random string) in `.env` and restart.
+2. Open `/_platform`, enter the master key and create a club: slug, names in both languages, its domain(s) and the
+   first administrator. From the command line: `python -m app.manage tenant-add kasc "Kottayam Arts & Sports Club" kasc.example.org admin@kasc.org 'password' KSC`.
+3. Point the club's domain at the server. With `deploy/site-multi.caddy`, Caddy issues a certificate on the first
+   visit, after checking with `/api/_platform/ask` that the domain is registered. Optionally set
+   `CLUB_BASE_DOMAIN=clubs.example.org` so every club is also reachable at `<slug>.clubs.example.org`.
+4. *Routing* on `/_platform`: list the default club's domains and switch on **strict** once every club has its own
+   address, so an unknown host gets "no club at this address" instead of the default club.
+
+A club can be deactivated (taken off the air, data kept) and reactivated. Background work (message outbox, daily
+jobs, nightly backups) runs for every club; Drive backups are prefixed with the slug. `python -m app.manage tenants`
+lists the clubs with their sizes.
+
 ## Protections
 
 Sessions are HttpOnly, SameSite cookies (Secure outside `CLUB_DEV`); every state-changing call needs the `X-Club`
@@ -139,10 +158,12 @@ app/backup.py      nightly backups, Google Drive upload and retention
 app/polls.py       polls and elections
 app/site.py        the public website page
 app/security.py    rate limiting and security headers
+app/tenancy.py     multi-club registry, host → club resolution, per-club directories
 app/help.py        the bilingual handbook
-app/manage.py      create-admin, seed-demo, daily
+app/manage.py      create-admin, seed-demo, daily, tenants, tenant-add
 app/static/        the PWA: app.js (core) + one file per area, i18n.js, styles.css
 tests/             workflow tests
 ```
 
-Data lives in one SQLite file (`data/club.db`) plus `data/uploads/`; the schema upgrades itself on start.
+Data lives in one SQLite file (`data/club.db`) plus `data/uploads/`; the schema upgrades itself on start. Extra clubs
+live under `data/tenants/<slug>/` with the registry in `data/tenants.json`.

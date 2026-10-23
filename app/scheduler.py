@@ -6,7 +6,7 @@ import os
 import threading
 import time
 
-from . import backup, comms, db, i18n
+from . import backup, comms, db, i18n, tenancy
 
 log = logging.getLogger("club.scheduler")
 
@@ -70,12 +70,14 @@ def start():
 
     def run():
         while True:
-            try:
-                if dt.datetime.now().hour >= int(os.environ.get("CLUB_DAILY_HOUR", "8")):
-                    run_daily()
-                nightly_backup()
-            except Exception:  # noqa: BLE001
-                log.exception("daily job")
+            for slug in tenancy.all_slugs():
+                try:
+                    with tenancy.use(slug):
+                        if dt.datetime.now().hour >= int(os.environ.get("CLUB_DAILY_HOUR", "8")):
+                            run_daily()
+                        nightly_backup()
+                except Exception:  # noqa: BLE001
+                    log.exception("daily job for %s", slug)
             time.sleep(600)
 
     _thread = threading.Thread(target=run, name="club-daily", daemon=True)
