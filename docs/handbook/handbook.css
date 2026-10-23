@@ -1,0 +1,82 @@
+/* ClubPro handbook: print styles for A4 via Chromium. */
+:root{--g:#0F4C45;--g2:#196B61;--a:#C9542A;--ink:#1D2A28;--mut:#5B6B68;--line:#E3DED2;--bg:#F7F4EC;--soft:#EEF2EF}
+*{box-sizing:border-box}
+@page{size:A4;margin:18mm 16mm 20mm 16mm}
+html,body{margin:0;padding:0}
+body{font-family:Inter,"Noto Sans Malayalam",Manjari,system-ui,sans-serif;color:var(--ink);font-size:10.6pt;line-height:1.5}
+.ml{font-family:Manjari,"Noto Sans Malayalam",sans-serif}
+code{font-family:"JetBrains Mono",Menlo,Consolas,monospace;font-size:9pt;background:var(--soft);padding:1px 4px;border-radius:4px}
+p{margin:6px 0 8px}
+h1,h2,h3{line-height:1.2;margin:0}
+a{color:var(--g2)}
+.small{font-size:9pt;color:var(--mut)}
+.ref{color:var(--a);font-weight:600}
+
+/* cover */
+.cover{page-break-after:always;height:257mm;position:relative;background:var(--g);color:#fff;margin:-18mm -16mm 0;padding:18mm 16mm;overflow:hidden}
+.cover-top{display:flex;justify-content:space-between;align-items:baseline}
+.cover .brand{font-size:30pt;font-weight:800;letter-spacing:-.02em}.cover .by{opacity:.85;font-size:10pt}
+.cover-mid{margin-top:28mm}.cover h1{font-size:40pt;font-weight:800;line-height:1.05;color:#fff}
+.cover .lead{font-size:12.5pt;opacity:.92;max-width:120mm;margin-top:10mm}.cover .lead2{font-size:10.5pt;opacity:.8;max-width:110mm}
+.cover-shots{position:absolute;right:-30mm;bottom:-8mm;width:150mm;height:120mm}
+.cover-shots img{position:absolute;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.4)}
+.cover-shots .c1{width:135mm;left:0;top:18mm;border:3px solid rgba(255,255,255,.4)}
+.cover-shots .c2{width:38mm;left:-24mm;top:4mm;border:3px solid rgba(255,255,255,.6)}
+.cover-foot{position:absolute;left:16mm;right:16mm;bottom:14mm;display:flex;justify-content:space-between;font-size:9pt;opacity:.8}
+.back{page-break-before:always;height:257mm;margin:-18mm -16mm 0;padding:18mm 16mm;background:var(--g);color:#fff;display:flex;flex-direction:column;justify-content:flex-end}
+.back .brand{font-size:28pt;font-weight:800}
+
+/* contents */
+.toc{page-break-after:always}
+.toc h1{font-size:24pt;color:var(--g);margin-bottom:8mm}
+.toc-grid{columns:2;column-gap:12mm}
+.toc-part{break-inside:avoid;font-weight:800;color:var(--g);margin:10px 0 4px;font-size:11pt;border-bottom:2px solid var(--g);padding-bottom:3px}
+.toc-part span{display:inline-block;background:var(--g);color:#fff;border-radius:6px;padding:0 6px;font-size:8.5pt;margin-right:6px;vertical-align:middle}
+.toc-row{display:flex;gap:8px;padding:2px 0;break-inside:avoid}.toc-row .n{color:var(--a);font-weight:700;min-width:18px;text-align:right}
+.toc-note{margin-top:10mm}
+
+/* parts */
+.part{page-break-before:always;page-break-after:always;height:257mm;margin:-18mm -16mm 0;padding:18mm 16mm;background:linear-gradient(160deg,var(--g),var(--g2) 70%,#2A8C7F);color:#fff;display:flex;align-items:center}
+.part-in{max-width:130mm}.part-letter{font-size:12pt;letter-spacing:.2em;text-transform:uppercase;opacity:.8}
+.part h1{font-size:34pt;font-weight:800;margin:4mm 0;color:#fff}.part p{font-size:12pt;opacity:.92}
+.part ul{margin:8mm 0 0;padding:0;list-style:none}.part li{padding:5px 0 5px 24px;position:relative;font-size:11pt}
+.part li::before{content:"";position:absolute;left:0;top:11px;width:12px;height:12px;border-radius:50%;background:var(--a)}
+
+/* chapters */
+.chapter{page-break-before:always}
+.ch-head{border-left:6px solid var(--a);padding:2px 0 2px 14px;margin:0 0 8mm}
+.ch-part{font-size:8.5pt;letter-spacing:.14em;text-transform:uppercase;color:var(--mut)}
+.ch-num{font-size:9pt;color:var(--a);font-weight:700;margin-top:2px}
+.chapter h1{font-size:20pt;color:var(--g);font-weight:800;margin-top:2px}.ch-sub{color:var(--mut);margin:3px 0 0;font-size:10.5pt}
+.glance{background:var(--soft);border-radius:10px;padding:10px 14px;margin:6px 0 10px;break-inside:avoid}
+.glance b{display:block;font-size:8.5pt;letter-spacing:.12em;text-transform:uppercase;color:var(--g);margin-bottom:4px}
+.glance ul{margin:0;padding-left:18px}.glance li{margin:2px 0}
+.steps{counter-reset:s;list-style:none;padding:0;margin:8px 0}
+.steps li{position:relative;padding:4px 0 6px 36px;margin:0;break-inside:avoid}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:4px;width:24px;height:24px;border-radius:50%;background:var(--g);color:#fff;font-weight:700;font-size:10pt;display:flex;align-items:center;justify-content:center}
+.steps li b{color:var(--g)}
+.call{display:flex;gap:10px;border-radius:10px;padding:8px 12px;margin:8px 0;font-size:10pt;break-inside:avoid;background:var(--soft)}
+.call .ic{font-size:14pt;line-height:1.2}
+.call.tip{background:#E4F3EA}.call.warn{background:#FBE9E1}.call.note{background:var(--soft)}.call.ml{background:#FBF0D9}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:8px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff;break-inside:avoid}.card b{color:var(--g);display:block;margin-bottom:3px}.card p{margin:0;font-size:9.8pt}
+
+/* figures */
+figure{margin:10px 0 12px;break-inside:avoid}
+figure.desk img{width:92%;border-radius:8px;border:1px solid var(--line);box-shadow:0 4px 18px rgba(29,42,40,.10)}
+figure.small{width:60%;margin-left:0}figure.small img{width:100%;border-radius:8px;border:1px solid var(--line);box-shadow:0 4px 18px rgba(29,42,40,.10)}
+figure.desk[style]{margin-left:0}
+figcaption{font-size:9pt;color:var(--mut);margin-top:5px;line-height:1.4}
+.phone{width:54mm;border-radius:14px;border:3px solid #1D2A28;background:#1D2A28;padding:3px;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.18);flex:0 0 auto}
+.phone img{width:100%;display:block;border-radius:10px;max-height:118mm;object-fit:cover;object-position:top}
+figure.phones .row{display:flex;gap:8mm;justify-content:flex-start}
+figure.phone-fig{display:flex;gap:8mm;align-items:flex-start}figure.phone-fig figcaption{margin-top:6mm;max-width:90mm}
+
+/* tables */
+table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:9.6pt;break-inside:auto}
+th,td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+th{background:var(--soft);color:var(--g);font-weight:700}
+tr{break-inside:avoid}
+table.matrix td:nth-child(n+3){text-align:center;color:var(--g);font-size:12pt}
+.flow{width:100%;height:auto;margin:6px 0 10px;font-family:Inter,sans-serif}
+dl.faq dt{font-weight:700;color:var(--g);margin-top:10px;break-after:avoid}dl.faq dd{margin:3px 0 0 0}

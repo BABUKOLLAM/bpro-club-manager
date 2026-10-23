@@ -205,6 +205,7 @@ app/help.py        the bilingual handbook
 app/manage.py      create-admin, seed-demo, daily, tenants, tenant-add
 app/static/        the PWA: app.js (core) + one file per area, i18n.js, styles.css
 tests/             workflow tests
+docs/handbook/     the user manual (PDF) and its generator
 ```
 
 Data lives in one SQLite file (`data/club.db`) plus `data/uploads/`; the schema upgrades itself on start. Extra clubs
