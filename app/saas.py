@@ -542,7 +542,7 @@ label{{display:block;font-size:.85rem;color:#5B6B68;margin:10px 0 4px}}input,sel
 .msg{{margin:10px 0;padding:10px 12px;border-radius:10px;background:#FBF0D9;color:#A86A00;display:none}}.msg.ok{{background:#E4F3EA;color:#2E7D4F}}.m{{color:#5B6B68;font-size:.88rem}}footer{{text-align:center;color:#8a948f;font-size:.8rem;padding:24px}}
 @media(max-width:640px){{.form{{grid-template-columns:1fr}}}}</style>{extra_head}</head>
 <body><header><div class="b">{html.escape(pr['name'])}</div><a href="?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a><a href="/pricing?lang={lang}">{'Pricing' if lang == 'en' else 'വില'}</a><a class="a" href="/signup?lang={lang}">{'Start free trial' if lang == 'en' else 'സൗജന്യ ട്രയൽ തുടങ്ങുക'}</a></header>
-<main>{body}</main><footer>{html.escape(pr['powered_by'])}{(' · ' + html.escape(pr['support'])) if pr['support'] else ''}</footer></body></html>"""
+<main>{body}</main><footer>{html.escape(pr['powered_by'])}{(' · ' + html.escape(pr['support'])) if pr['support'] else ''}<br><a href="/terms?lang={lang}" style="color:inherit">{'Terms of service' if lang == 'en' else 'സേവന വ്യവസ്ഥകൾ'}</a> · <a href="/privacy?lang={lang}" style="color:inherit">{'Privacy policy' if lang == 'en' else 'സ്വകാര്യതാ നയം'}</a></footer></body></html>"""
 
 
 def _services_html(lang):
@@ -590,7 +590,7 @@ def signup_page(lang: str = "en"):
 <div><label>{L[8]} *</label><input name="admin_name" required></div><div><label>{L[19]}</label><select name="lang"><option value="ml" {'selected' if lang == 'ml' else ''}>മലയാളം</option><option value="en" {'selected' if lang == 'en' else ''}>English</option></select></div>
 <div><label>{L[9]} *</label><input name="phone" required inputmode="tel" pattern="[0-9 +\\-]{{10,15}}"></div><div><label>{L[10]}</label><input name="email" type="email"></div>
 <div class="full"><label>{L[11]} *</label><input name="password" type="password" minlength="8" required autocomplete="new-password"></div>
-<div class="full"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="agree" required style="width:auto"> {L[12]}</label></div></div>
+<div class="full"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="agree" required style="width:auto"> {L[12]} <a href="/terms?lang={lang}" target="_blank">{'Terms' if lang == 'en' else 'വ്യവസ്ഥകൾ'}</a> · <a href="/privacy?lang={lang}" target="_blank">{'Privacy' if lang == 'en' else 'സ്വകാര്യത'}</a></label></div></div>
 <div class="msg" id="m1"></div><p><button class="btn" onclick="start()">{L[13]}</button></p></form>
 <form id="f2" class="card" style="display:none" onsubmit="return false"><label>{L[14]}</label><input name="code" inputmode="numeric" autocomplete="one-time-code" style="max-width:200px;font-size:1.3rem;letter-spacing:.2em"><div class="msg" id="m2"></div><p><button class="btn" onclick="verify()">{L[15]}</button></p></form>
 <div id="done" class="card" style="display:none"><h2 style="margin-top:0">{L[16]} 🎉</h2><p id="done-t"></p><p><a id="done-a" class="btn g" href="#">{L[17]}</a></p></div>

@@ -144,6 +144,10 @@ The same server can be run as a service where clubs sign up by themselves and pa
 * **Lifecycle**: trial → active (paid a year) → overdue (grace) → read-only. A read-only club still signs in, reads
   everything and pays; every other change is refused with a clear message. Nothing is deleted. Office bearers are
   reminded 7 days before the end, when payment is due and when the club becomes read-only (app, WhatsApp, e-mail).
+* **Terms and privacy** at `/terms` and `/privacy` (English / Malayalam, `app/legal.py`): the club is the data fiduciary
+  under India's DPDP Act 2023 and the operator its processor; trial, pricing, grace and read-only behaviour as the app
+  implements them; data export and deletion. Linked from signup, the pricing page, the application form and the app
+  footer. Have them reviewed before going live and edit the text in `app/legal.py`.
 * **Operator console** on `/_platform`: clubs by status, yearly run-rate, amount collected, trials ending this week,
   UPI claims to confirm, per-club mark paid / extend trial / suspend / reopen, pricing, UPI ID and support contact.
   The original (default) club is the operator's own and pays nothing.
@@ -200,6 +204,7 @@ app/site.py        the public website page
 app/security.py    rate limiting and security headers
 app/brand.py       white label: palette from two colours, logo, generated app icons
 app/saas.py        SaaS: signup with OTP, pricing, plan state, operator billing, reminders, /pricing and /signup
+app/legal.py       terms of service and privacy policy, /terms and /privacy, EN / ML
 app/tenancy.py     multi-club registry, host → club resolution, per-club directories
 app/help.py        the bilingual handbook
 app/manage.py      create-admin, seed-demo, daily, tenants, tenant-add
