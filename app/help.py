@@ -5,7 +5,7 @@ import html
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from . import db
+from . import brand, db
 
 router = APIRouter()
 
@@ -144,11 +144,12 @@ def help_page(lang: str = ""):
             if x["audience"] != aud:
                 continue
             body += f"<section id='{x['key']}'><h3>{e(x['title'])}</h3>{''.join('<p>' + e(p) + '</p>' for p in x['paragraphs'])}</section>"
-    return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{L[0]} · {e(s['club_short'])}</title>
+    c = brand.colors(s)
+    return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{L[0]} · {e(s['club_short'])}</title>{brand.html_head(s)}
 <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <style>body{{font-family:Inter,Manjari,sans-serif;max-width:820px;margin:0 auto;padding:24px 18px 60px;color:#1D2A28;line-height:1.6;background:#F7F4EC}}html[lang=ml] body{{font-family:Manjari,Inter,sans-serif;font-size:1.05rem}}
-h1{{color:#0F4C45;margin:.2em 0}}h2.part{{color:#fff;background:#0F4C45;padding:8px 14px;border-radius:10px;margin-top:30px;font-size:1.15rem}}h3{{color:#0F4C45;margin:22px 0 6px;border-bottom:2px solid #E3DED2;padding-bottom:4px}}
-p{{margin:8px 0}}a{{color:#196B61}}.top{{display:flex;gap:10px;align-items:center;flex-wrap:wrap}}.btn{{background:#0F4C45;color:#fff;padding:7px 12px;border-radius:9px;text-decoration:none;font-weight:600}}
+h1{{color:{c['primary']};margin:.2em 0}}h2.part{{color:{c['primary_ink']};background:{c['primary']};padding:8px 14px;border-radius:10px;margin-top:30px;font-size:1.15rem}}h3{{color:{c['primary']};margin:22px 0 6px;border-bottom:2px solid #E3DED2;padding-bottom:4px}}
+p{{margin:8px 0}}a{{color:{c["primary_2"] if c["primary_2"] != "#FFFFFF" else c["primary"]}}}.top{{display:flex;gap:10px;align-items:center;flex-wrap:wrap}}.btn{{background:{c['primary']};color:{c['primary_ink']};padding:7px 12px;border-radius:9px;text-decoration:none;font-weight:600}}
 .toc{{background:#fff;border:1px solid #E3DED2;border-radius:12px;padding:12px 18px 12px 34px;columns:2;font-size:.95rem}}.m{{color:#5B6B68;font-size:.85rem}}@media print{{.btn{{display:none}}body{{background:#fff}}}}</style></head>
-<body><div class="top"><div style="flex:1"><div class=m>{e(s['club_name_ml' if lang == 'ml' else 'club_name_en'])}</div><h1>{L[0]}</h1></div><a class="btn" href="/help?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a><a class="btn" href="#" onclick="window.print();return false">🖨</a></div>
+<body><div class="top">{brand.logo_img(s, height=48)}<div style="flex:1"><div class=m>{e(s['club_name_ml' if lang == 'ml' else 'club_name_en'])}</div><h1>{L[0]}</h1></div><a class="btn" href="/help?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a><a class="btn" href="#" onclick="window.print();return false">🖨</a></div>
 <h2 style="font-size:1rem;color:#5B6B68">{L[3]}</h2><ol class="toc">{toc}</ol>{body}<p class=m style="margin-top:40px">{e(s['footer_credit'])}</p></body></html>"""

@@ -128,17 +128,25 @@ function shell(bodyHtml, title) {
   const { items, office } = navItems(); const cur = location.hash || '#/';
   const link = i => `<a href="${i.h}" class="${(i.h === '#/' ? cur === '#/' : cur.startsWith(i.h)) ? 'on' : ''}" onclick="document.querySelector('.side').classList.remove('open')">${esc(i.l)}${i.badge ? `<span class="badge">${i.badge}</span>` : ''}</a>`;
   const info = S.info || {};
-  return `<div class="shell"><aside class="side"><div class="brand">${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div>
+  return `<div class="shell"><aside class="side"><div class="brand">${brandLogo()}<div>${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div></div>
   <nav class="nav">${items.map(link).join('')}${office.length ? `<div class="grp">${t('office')}</div>${office.map(link).join('')}` : ''}</nav>
-  <div class="foot">${esc(S.user.name)} · ${esc(t(S.user.role))}<br>${langBtn()} <button class="lang-sw" onclick="A.logout()">${t('sign_out')}</button><br><a href="/help?lang=${S.lang}" target="_blank" style="color:#fff;opacity:.85">📖 ${t('handbook')}</a><br><br>${esc(info.footer_credit || '')}</div></aside>
+  <div class="foot">${esc(S.user.name)} · ${esc(t(S.user.role))}<br>${langBtn()} <button class="lang-sw" onclick="A.logout()">${t('sign_out')}</button><br><a href="/help?lang=${S.lang}" target="_blank" style="color:inherit;opacity:.85">📖 ${t('handbook')}</a><br><br>${esc(info.footer_credit || '')}</div></aside>
   <div class="main"><div class="top"><button onclick="document.querySelector('.side').classList.toggle('open')">☰</button><div class="ttl">${esc(title || info.club_short || '')}</div>${langBtn()}</div><div id="main">${bodyHtml}</div></div></div>`;
+}
+function brandLogo() { const b = (S.info && S.info.brand) || {}; return b.logo ? `<img src="${esc(b.logo)}" alt="">` : ''; }
+// The club's colours, title and icon: inlined by the server on first paint, refreshed here after a settings change.
+function applyBrand() {
+  const b = (S.info && S.info.brand) || {}; document.title = b.app_name || S.info.club_short || '';
+  let st = document.getElementById('brand'); if (!st) { st = document.createElement('style'); st.id = 'brand'; } document.head.appendChild(st); if (b.css && st.textContent !== b.css) st.textContent = b.css;
+  const tc = document.querySelector('meta[name=theme-color]'); if (tc && b.primary) tc.content = b.primary;
+  const ic = document.querySelector('link[rel=icon]'); if (ic && b.favicon && !ic.href.endsWith(b.favicon)) ic.href = b.favicon;
 }
 A.logout = async () => { await post('/api/auth/logout'); S.user = null; S.member = null; S.membersCache = null; nav('#/'); };
 
 // ---------- public screens ----------
 function pubShell(body) {
   const info = S.info || {};
-  return `<div class="pub"><header><div class="brand">${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div>
+  return `<div class="pub"><header><div class="brand">${brandLogo()}<div>${esc(S.lang === 'ml' ? (info.club_name_ml || info.club_name_en) : info.club_name_en)}<small>${esc(S.lang === 'ml' ? info.club_place_ml || info.club_place_en || '' : info.club_place_en || '')}</small></div></div>
   ${langBtn()} <a class="btn" href="/site?lang=${S.lang}">${t('website')}</a><a class="btn" href="/help?lang=${S.lang}">${t('help')}</a><a class="btn" href="#/login">${t('sign_in')}</a>${info.public_registration === '1' ? `<a class="btn accent" href="#/apply">${t('apply')}</a>` : ''}</header><main>${body}</main><footer>${esc(info.footer_credit || '')}</footer></div>`;
 }
 async function viewLanding() {
@@ -302,7 +310,7 @@ R('/notifications', viewNotifications);
 
 // ---------- app ----------
 const App = {
-  async me() { const r = await get('/api/auth/me', { quiet: true }); S.user = r.user; S.member = r.member; S.info = r.info; S.settings = r.settings; S.unread = r.unread || 0; S.judging = r.judging || 0; if (S.user && S.user.lang && !localStorage.getItem('club_lang_set')) { S.lang = S.user.lang; localStorage.setItem('club_lang', S.lang); } document.documentElement.lang = S.lang; document.title = S.info.club_short || 'Club'; },
+  async me() { const r = await get('/api/auth/me', { quiet: true }); S.user = r.user; S.member = r.member; S.info = r.info; S.settings = r.settings; S.unread = r.unread || 0; S.judging = r.judging || 0; if (S.user && S.user.lang && !localStorage.getItem('club_lang_set')) { S.lang = S.user.lang; localStorage.setItem('club_lang', S.lang); } document.documentElement.lang = S.lang; applyBrand(); },
   async start() {
     try { await this.me(); } catch (e) { render(`<div class="empty">${t('error')}<br><button class="btn" onclick="location.reload()">${t('retry')}</button></div>`); return; }
     window.addEventListener('hashchange', () => this.route());

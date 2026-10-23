@@ -8,7 +8,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from . import auth, comms, db, i18n
+from . import brand, auth, comms, db, i18n
 from .auth import can, current_user, require
 
 router = APIRouter()
@@ -342,16 +342,17 @@ def public_page(pid: int, request: Request, lang: str = ""):
     meta = " · ".join(x for x in [i18n.label(i18n.KIND_LABELS, p["kind"], lang), when, venue] if x)
     other = "en" if lang == "ml" else "ml"
     results = i18n.pick(p, "results", lang)
+    c = brand.colors(s)
     res_html = f"<h2>{'ഫലങ്ങൾ' if lang == 'ml' else 'Results'}</h2><pre>{html.escape(results)}</pre>" if results else ""
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)} · {html.escape(s['club_short'])}</title>
-<meta property="og:title" content="{html.escape(title)}"><meta property="og:description" content="{html.escape(meta)}">{og}
+<meta property="og:title" content="{html.escape(title)}"><meta property="og:description" content="{html.escape(meta)}">{og}{brand.html_head(s)}
 <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>body{{font-family:Inter,Manjari,sans-serif;margin:0;background:#F7F4EC;color:#1d2a28}}header{{background:#0F4C45;color:#fff;padding:14px 18px;font-weight:700}}
+<style>body{{font-family:Inter,Manjari,sans-serif;margin:0;background:#F7F4EC;color:#1d2a28}}header{{background:{c['primary']};color:{c['primary_ink']};padding:14px 18px;font-weight:700;display:flex;align-items:center;gap:12px}}header .lang{{margin-left:auto}}
 main{{max-width:720px;margin:0 auto;padding:18px}}.cover{{width:100%;border-radius:12px;max-height:420px;object-fit:cover}}h1{{font-size:1.5rem;margin:.6em 0 .2em}}
-.meta{{color:#5b6b68;margin-bottom:1em}}pre{{white-space:pre-wrap;font:inherit;line-height:1.55}}a.btn{{display:inline-block;background:#C9542A;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none;margin-top:1em}}
-footer{{text-align:center;color:#8a948f;font-size:.8rem;padding:24px}}.lang{{float:right;color:#fff;opacity:.8;font-weight:400;font-size:.85rem}}</style></head>
-<body><header>{html.escape(club)}<a class="lang" href="?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a></header><main>{cover}
+.meta{{color:#5b6b68;margin-bottom:1em}}pre{{white-space:pre-wrap;font:inherit;line-height:1.55}}a.btn{{display:inline-block;background:{c['accent']};color:{c['accent_ink']};padding:10px 16px;border-radius:10px;text-decoration:none;margin-top:1em}}
+footer{{text-align:center;color:#8a948f;font-size:.8rem;padding:24px}}.lang{{color:inherit;opacity:.8;font-weight:400;font-size:.85rem}}</style></head>
+<body><header>{brand.logo_img(s, height=36)}<span>{html.escape(club)}</span><a class="lang" href="?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a></header><main>{cover}
 <h1>{html.escape(title)}</h1><div class="meta">{html.escape(meta)}</div><pre>{html.escape(body)}</pre>{res_html}
 {"<a class='btn' href='/#/posts/" + str(pid) + "'>" + ('രജിസ്റ്റർ ചെയ്യുക' if lang == 'ml' else 'Register') + "</a>" if p['reg_open'] else ""}
 </main><footer>{html.escape(s['footer_credit'])}</footer></body></html>"""

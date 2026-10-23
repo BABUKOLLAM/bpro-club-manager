@@ -949,3 +949,83 @@ def test_multi_club_isolation(admin):
     finally:
         os.environ.pop("CLUB_MASTER_KEY", None)
     assert anon.get("/_platform").status_code == 404
+
+
+def test_white_label_brand_and_own_channels(admin):
+    import io as _io
+    from PIL import Image
+    from app import brand, tenancy
+    anon = TestClient(app)
+    # colours: valid hex is kept, junk falls back to the default; the palette reaches the shell, the manifest and the API
+    assert admin.post("/api/settings", json={"brand_primary": "#123456", "brand_accent": "zzz", "brand_app_name": "ClubDesk KASC"}, headers=H).status_code == 200
+    info = anon.get("/api/public/info").json()["brand"]
+    assert info["primary"] == "#123456" and info["accent"] == "#C9542A" and info["app_name"] == "ClubDesk KASC" and info["logo"] == ""
+    shell = anon.get("/").text
+    assert "--brand:#123456" in shell and "<title>ClubDesk KASC</title>" in shell and 'content="#123456"' in shell
+    man = anon.get("/manifest.webmanifest").json()
+    assert man["theme_color"] == "#123456" and man["short_name"] == "ClubDesk KASC" and man["icons"][0]["src"].endswith(".svg")
+    assert anon.get("/brand/icon-192.png").status_code == 200  # stock icon while there is no logo
+    # a dark primary gets white text, a pale one dark text
+    assert brand.ink_on("#123456") == "#FFFFFF" and brand.ink_on("#F2E8C0") == "#1D2A28"
+    # the logo: only settings managers, images only; it is served to visitors and becomes the app icon
+    buf = _io.BytesIO(); Image.new("RGBA", (300, 120), (200, 30, 30, 255)).save(buf, "PNG")
+    mc = login("9847012345", "ramesh-pass-1")
+    assert mc.post("/api/upload/brand", files={"file": ("logo.png", buf.getvalue(), "image/png")}, headers=H).status_code == 403
+    assert admin.post("/api/upload/brand", files={"file": ("x.pdf", b"%PDF-1.4", "application/pdf")}, headers=H).status_code == 400
+    r = admin.post("/api/upload/brand", files={"file": ("logo.png", buf.getvalue(), "image/png")}, headers=H)
+    assert r.status_code == 200 and r.json()["path"].startswith("brand/")
+    logo = r.json()["path"]
+    assert admin.post("/api/settings", json={"brand_logo": "../etc/passwd"}, headers=H).status_code == 400
+    assert admin.post("/api/settings", json={"brand_logo": logo}, headers=H).status_code == 200
+    assert anon.get(f"/uploads/{logo}").status_code == 200
+    icon = anon.get("/brand/icon-192.png")
+    assert icon.status_code == 200 and Image.open(_io.BytesIO(icon.content)).size == (192, 192)
+    assert Image.open(_io.BytesIO(anon.get("/brand/icon-512.png").content)).size == (512, 512)
+    assert Image.open(_io.BytesIO(anon.get("/brand/apple-touch-icon.png").content)).size == (180, 180)
+    assert anon.get("/manifest.webmanifest").json()["icons"][0]["src"] == "/brand/icon-192.png"
+    assert anon.get("/api/public/info").json()["brand"]["logo"] == f"/uploads/{logo}"
+    # the brand reaches the public website, the handbook, a public post page, the annual report and the membership card
+    assert logo in anon.get("/site?lang=en").text and "#123456" in anon.get("/site?lang=en").text
+    assert "#123456" in anon.get("/help?lang=en").text and logo in anon.get("/help?lang=en").text
+    assert "#123456" in admin.get("/api/reports/annual/print?year=2026&lang=en").text
+    mid = db.one("SELECT id FROM members WHERE status='active' ORDER BY id LIMIT 1")["id"]
+    card = admin.get(f"/api/members/{mid}/card?lang=en").text
+    assert "--cb:#123456" in card and "blogo" in card and logo in card
+    d = admin.get(f"/api/members/{mid}/card.json").json()
+    assert d["brand"]["primary"] == "#123456" and d["brand"]["logo"] == logo
+    # removing the logo drops the generated icons; the stock icon is served again
+    assert admin.post("/api/settings", json={"brand_logo": ""}, headers=H).status_code == 200
+    assert not os.path.exists(brand.icon_path(192)) and anon.get("/brand/icon-192.png").status_code == 200
+    # this club's own gateway accounts: secrets are masked on read, kept when the mask is sent back, and win over .env
+    s = admin.get("/api/settings").json()
+    assert s["smtp_pass"] == "" and s["channels"]["email"] is False and s["own_channels"]["email"] is False
+    assert admin.post("/api/settings", json={"sms_headers": "{not json"}, headers=H).status_code == 400
+    assert admin.post("/api/settings", json={"smtp_host": "smtp.kasc.test", "smtp_from": "KASC <club@kasc.test>", "smtp_pass": "secret-1", "rzp_key_id": "rzp_test_1", "rzp_key_secret": "rzp-secret"}, headers=H).status_code == 200
+    s = admin.get("/api/settings").json()
+    assert s["smtp_pass"] == "••••••••" and s["rzp_key_secret"] == "••••••••" and s["channels"]["email"] is True and s["own_channels"]["email"] is True and s["gateway"] is True
+    assert admin.post("/api/settings", json={"smtp_pass": "••••••••", "smtp_user": "club"}, headers=H).status_code == 200
+    assert db.setting("smtp_pass") == "secret-1" and comms.cfg("CLUB_SMTP_HOST") == "smtp.kasc.test"
+    os.environ["CLUB_SMTP_HOST"] = "smtp.server.test"
+    try:
+        assert comms.cfg("CLUB_SMTP_HOST") == "smtp.kasc.test"
+        admin.post("/api/settings", json={"smtp_host": ""}, headers=H)
+        assert comms.cfg("CLUB_SMTP_HOST") == "smtp.server.test"
+    finally:
+        os.environ.pop("CLUB_SMTP_HOST", None)
+    admin.post("/api/settings", json={"smtp_from": "", "smtp_pass": "", "rzp_key_id": "", "rzp_key_secret": "", "brand_primary": "#0F4C45", "brand_app_name": ""}, headers=H)
+    # the platform operator's own brand: product name on /_platform and a "powered by" footer for every new club
+    os.environ["CLUB_MASTER_KEY"] = "master-key-1"
+    try:
+        MK = {"X-Master-Key": "master-key-1"}
+        assert anon.post("/api/_platform/settings", json={"product_name": "ClubDesk", "powered_by": "Powered by ClubDesk"}, headers=MK).status_code == 200
+        assert anon.get("/api/_platform/tenants", headers=MK).json()["product_name"] == "ClubDesk"
+        r = anon.post("/api/_platform/tenants", json={"slug": "wl", "name_en": "White Label Club", "domains": ["wl.test"], "admin_login": "sec@wl.test", "admin_password": "wl-admin-12"}, headers=MK)
+        assert r.status_code == 200, r.text
+        w = TestClient(app, base_url="http://wl.test")
+        assert w.get("/api/public/info").json()["footer_credit"] == "Powered by ClubDesk"
+        assert "Powered by ClubDesk" in w.get("/site?lang=en").text
+        with tenancy.use("wl"):
+            assert comms.cfg("CLUB_SMTP_HOST") == ""  # the other club's SMTP account is not shared
+        anon.post("/api/_platform/settings", json={"product_name": "", "powered_by": ""}, headers=MK)
+    finally:
+        os.environ.pop("CLUB_MASTER_KEY", None)

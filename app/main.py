@@ -2,6 +2,7 @@
 reading room, accounts, and bilingual (English / Malayalam) communication by WhatsApp, SMS, e-mail and in-app."""
 import contextlib
 import datetime as dt
+import html
 import json
 import logging
 import mimetypes
@@ -14,7 +15,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, Up
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, comms, db, i18n, push, security, tenancy
+from . import auth, brand, comms, db, i18n, push, security, tenancy
 from .auth import can, current_user, require
 from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, help as helpdoc
 
@@ -84,18 +85,34 @@ def healthz():
     return {"ok": True}
 
 
+_INDEX = open(os.path.join(STATIC, "index.html"), encoding="utf-8").read()
+
+
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(STATIC, "index.html"), headers={"Cache-Control": "no-cache"})
+    """The app shell with this club's title, icon and colours inlined, so the first paint already wears the brand."""
+    p = brand.palette()
+    html_ = _INDEX.replace("<!--brand-->", brand.html_head()).replace("<title>Club</title>", f"<title>{html.escape(p['app_name'])}</title>")
+    return HTMLResponse(html_, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/manifest.webmanifest")
 def manifest():
     s = db.settings_all()
-    return JSONResponse({"name": s["club_name_en"], "short_name": s["club_short"], "start_url": "/", "display": "standalone",
-                         "background_color": "#F7F4EC", "theme_color": "#0F4C45", "lang": "ml",
-                         "icons": [{"src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]},
+    p = brand.palette(s)
+    icons = ([{"src": p["icon_192"], "sizes": "192x192", "type": "image/png", "purpose": "any maskable"}, {"src": p["icon_512"], "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}]
+             if s["brand_logo"] else [{"src": "/static/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}])
+    return JSONResponse({"name": s["brand_app_name"] or s["club_name_en"], "short_name": p["app_name"], "start_url": "/", "display": "standalone",
+                         "background_color": "#F7F4EC", "theme_color": p["primary"], "lang": s["default_lang"], "icons": icons},
                         media_type="application/manifest+json")
+
+
+@app.get("/brand/{name}")
+def brand_icon(name: str):
+    size = {"icon-192.png": 192, "icon-512.png": 512, "apple-touch-icon.png": 180}.get(name)
+    if not size:
+        raise HTTPException(404)
+    return FileResponse(brand.icon_file(size), media_type="image/png", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/sw.js")
@@ -116,6 +133,7 @@ def public_info():
     out["channels"] = comms.configured()
     out["upi_id"] = s["upi_id"]
     out["upi_name"] = s["upi_name"]
+    out["brand"] = brand.palette(s)
     return out
 
 
@@ -397,22 +415,50 @@ async def upsert_user(request: Request, user=Depends(require("users.manage"))):
 
 
 # ---------- settings ----------
+MASK = "••••••••"
+
+
 @app.get("/api/settings")
 def get_settings(user=Depends(require("settings.manage"))):
-    return settings_for(user)
+    s = settings_for(user)
+    for k in comms.SECRET_SETTINGS:
+        s[k] = MASK if s.get(k) else ""
+    s["own_channels"] = comms.own_channels()
+    s["env_channels"] = {"whatsapp": bool(os.environ.get("CLUB_WA_TOKEN")), "sms": bool(os.environ.get("CLUB_SMS_URL")), "email": bool(os.environ.get("CLUB_SMTP_HOST")), "gateway": bool(os.environ.get("CLUB_RZP_KEY_ID"))}
+    return s
 
 
 @app.post("/api/settings")
 async def save_settings(request: Request, user=Depends(require("settings.manage"))):
     b = await request.json()
+    before = db.settings_all()
     with db.tx() as c:
         for k, v in b.items():
             if k not in db.DEFAULT_SETTINGS:
                 continue
+            if k in comms.SECRET_SETTINGS and v == MASK:
+                continue
             if k in ("membership_types", "wards", "teams"):
                 v = json.dumps(v if isinstance(v, list) else json.loads(v or "[]"))
-            db.set_setting(c, k, v)
+            if k in ("brand_primary", "brand_accent"):
+                v = brand.valid_hex(v, db.DEFAULT_SETTINGS[k])
+            if k == "sms_headers" and v:
+                try:
+                    json.loads(v)
+                except ValueError:
+                    raise HTTPException(400, "SMS headers must be JSON")
+            if k == "brand_logo" and v and (".." in v or not v.startswith("brand/")):
+                raise HTTPException(400, "logo")
+            db.set_setting(c, k, str(v) if v is not None else "")
         db.audit(c, user["id"], "settings.save", detail=",".join(b.keys()))
+    after = db.settings_all()
+    if after["brand_logo"] and any(after[k] != before[k] for k in ("brand_logo", "brand_primary")):
+        try:
+            brand.make_icons(after["brand_logo"], after)
+        except Exception:
+            logging.exception("brand icons")
+    elif not after["brand_logo"]:
+        brand.clear_icons()
     return {"ok": True}
 
 
@@ -453,10 +499,15 @@ def save_upload(upload: UploadFile, folder, max_mb=8):
 
 @app.post("/api/upload/{folder}")
 def upload(folder: str, file: UploadFile = File(...), user=Depends(current_user)):
-    if folder not in ("posts", "members", "books", "docs"):
+    if folder not in ("posts", "members", "books", "docs", "brand"):
         raise HTTPException(400, "folder")
     if folder in ("posts", "books", "docs") and not (can(user, "posts.manage") or can(user, "library.manage")):
         raise HTTPException(403, "no")
+    if folder == "brand":
+        if not can(user, "settings.manage"):
+            raise HTTPException(403, "no")
+        if (file.content_type or "") == "application/pdf":
+            raise HTTPException(400, "the logo must be a PNG, JPEG or WebP image")
     rel, mime = save_upload(file, folder, max_mb=20 if folder == "docs" else 8)
     return {"path": rel, "mime": mime, "url": f"/uploads/{rel}", "size": os.path.getsize(os.path.join(db.upload_dir(), rel))}
 
@@ -465,7 +516,7 @@ def upload(folder: str, file: UploadFile = File(...), user=Depends(current_user)
 def serve_upload(path: str, request: Request):
     if ".." in path or path.startswith("/"):
         raise HTTPException(404)
-    if not path.startswith("posts/") and not auth.user_from_request(request):
+    if not path.startswith(("posts/", "brand/")) and not auth.user_from_request(request):
         public_doc = path.startswith("docs/") and db.one("SELECT 1 FROM documents WHERE path=? AND audience='public' AND deleted=0", (path,))
         # office bearers' photos appear on the public website; every other member photo needs a sign-in
         office_photo = path.startswith("members/") and db.one("SELECT 1 FROM members m JOIN committee_members cm ON cm.member_id=m.id JOIN committees c ON c.id=cm.committee_id "
@@ -611,7 +662,8 @@ def platform_list(request: Request):
         except Exception as e:  # noqa: BLE001
             st = {"error": str(e)[:100]}
         rows.append({"slug": slug, **t, **st})
-    return {"tenants": rows, "strict": bool(reg.get("strict")), "base_domain": os.environ.get("CLUB_BASE_DOMAIN", "")}
+    return {"tenants": rows, "strict": bool(reg.get("strict")), "base_domain": os.environ.get("CLUB_BASE_DOMAIN", ""),
+            "product_name": reg.get("product_name", ""), "powered_by": reg.get("powered_by", "")}
 
 
 @app.post("/api/_platform/tenants")
@@ -645,6 +697,9 @@ async def platform_settings(request: Request):
         reg["strict"] = bool(b["strict"])
     if "default_domains" in b:
         reg["default_domains"] = [d.strip().lower() for d in (b["default_domains"] or []) if d and d.strip()]
+    for k in ("product_name", "powered_by"):
+        if k in b:
+            reg[k] = str(b[k] or "").strip()[:120]
     tenancy.save_registry(reg)
     return {"ok": True}
 

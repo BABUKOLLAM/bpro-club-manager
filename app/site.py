@@ -7,7 +7,7 @@ import json
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
-from . import comms, db, i18n
+from . import brand, comms, db, i18n
 
 router = APIRouter()
 
@@ -17,7 +17,7 @@ def site_data():
     today = dt.date.today().isoformat()
     return {
         "settings": {k: s[k] for k in ("club_name_en", "club_name_ml", "club_short", "club_reg_no", "club_address_en", "club_address_ml", "club_place_en", "club_place_ml", "club_phone", "club_email",
-                                       "about_en", "about_ml", "map_url", "social_facebook", "social_instagram", "social_youtube", "social_whatsapp", "site_cover", "public_registration", "footer_credit")},
+                                       "about_en", "about_ml", "map_url", "social_facebook", "social_instagram", "social_youtube", "social_whatsapp", "site_cover", "public_registration", "footer_credit", "brand_logo", "brand_primary", "brand_accent")},
         "office_bearers": db.q("SELECT cm.designation_en, cm.designation_ml, m.name_en, m.name_ml, m.photo, m.show_phone, CASE WHEN m.show_phone=1 THEN m.phone ELSE '' END AS phone FROM committee_members cm JOIN members m ON m.id=cm.member_id "
                                "JOIN committees c ON c.id=cm.committee_id WHERE cm.active=1 AND c.kind='executive' AND m.status='active' ORDER BY cm.sort, cm.id"),
         "upcoming": db.q("SELECT id, kind, title_en, title_ml, starts_at, venue_en, venue_ml, cover, reg_open FROM posts WHERE status='published' AND audience='public' AND deleted=0 AND starts_at>=? ORDER BY starts_at LIMIT 8", (today,)),
@@ -46,6 +46,7 @@ def site(lang: str = ""):
     about = s["about_ml" if lang == "ml" else "about_en"] or s["about_en"] or s["about_ml"]
     addr = s["club_address_ml" if lang == "ml" else "club_address_en"] or s["club_address_en"]
     base = comms.club_ctx()["link"]
+    c = brand.colors(s)
     cover = f"<img class='cover' src='/uploads/{e(s['site_cover'])}'>" if s["site_cover"] else ""
     og_img = f"<meta property='og:image' content='{base}/uploads/{e(s['site_cover'])}'>" if s["site_cover"] else ""
     when = lambda p: __import__("app.news", fromlist=["_when"])._when(p, lang)
@@ -59,10 +60,10 @@ def site(lang: str = ""):
     st = d["stats"]
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(name)}</title><meta name="description" content="{e((about or name)[:160])}"><meta property="og:title" content="{e(name)}"><meta property="og:description" content="{e((about or place or name)[:200])}">{og_img}
-<link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml"><link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-<style>:root{{--g:#0F4C45;--a:#C9542A;--bg:#F7F4EC;--ink:#1D2A28;--mut:#5B6B68;--line:#E3DED2}}*{{box-sizing:border-box}}body{{margin:0;font-family:Inter,Manjari,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}}
+{brand.html_head(s)}<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>:root{{--g:{c['primary']};--a:{c['accent']};--gi:{c['primary_ink']};--bg:#F7F4EC;--ink:#1D2A28;--mut:#5B6B68;--line:#E3DED2}}*{{box-sizing:border-box}}body{{margin:0;font-family:Inter,Manjari,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}}
 html[lang=ml] body{{font-family:Manjari,Inter,sans-serif}}a{{color:var(--g);text-decoration:none}}header{{background:var(--g);color:#fff;padding:14px 18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}}
-header .brand{{flex:1;font-weight:700;font-size:1.15rem;min-width:200px}}header .brand small{{display:block;font-weight:400;opacity:.8;font-size:.8rem}}.btn{{display:inline-block;padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.15);color:#fff;font-weight:600}}
+header .brand{{flex:1;font-weight:700;font-size:1.15rem;min-width:200px;display:flex;align-items:center;gap:12px}}header .brand small{{display:block;font-weight:400;opacity:.8;font-size:.8rem}}.btn{{display:inline-block;padding:8px 14px;border-radius:10px;background:rgba(255,255,255,.15);color:#fff;font-weight:600}}
 .btn.a{{background:var(--a)}}main{{max-width:1040px;margin:0 auto;padding:18px 16px 50px}}.cover{{width:100%;max-height:380px;object-fit:cover;border-radius:16px;margin-bottom:16px}}
 h1{{font-size:1.7rem;margin:.3em 0}}h2{{font-size:1.2rem;margin:26px 0 10px;color:var(--g);border-bottom:2px solid var(--g);padding-bottom:4px}}.s{{color:var(--mut);font-size:.85rem}}
 .stats{{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}}.stats div{{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px}}.stats b{{display:block;font-size:1.4rem;font-family:Inter}}
@@ -71,7 +72,7 @@ h1{{font-size:1.7rem;margin:.3em 0}}h2{{font-size:1.2rem;margin:26px 0 10px;colo
 .obs{{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}}.ob{{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}}.ob img,.ob .av{{width:72px;height:72px;border-radius:50%;object-fit:cover;background:#eef2ef;margin:0 auto 6px;display:block}}
 .ob b{{display:block}}.ob span{{display:block;color:var(--mut);font-size:.85rem}}.ph{{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}}.ph img{{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px}}
 pre{{white-space:pre-wrap;font:inherit}}ul{{padding-left:18px}}footer{{text-align:center;color:var(--mut);font-size:.8rem;padding:20px}}.contact a{{display:inline-block;margin-right:12px}}.social a{{margin:0 8px 8px 0;background:var(--g)}}</style></head>
-<body><header><div class="brand">{e(name)}<small>{e(place)}</small></div><a class="btn" href="/site?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a><a class="btn" href="/#/login">{L[10]}</a>{('<a class="btn a" href="/#/apply">' + L[9] + '</a>') if s['public_registration'] == '1' else ''}</header>
+<body><header><div class="brand">{brand.logo_img(s, height=46)}<div>{e(name)}<small>{e(place)}</small></div></div><a class="btn" href="/site?lang={other}">{'English' if lang == 'ml' else 'മലയാളം'}</a><a class="btn" href="/#/login">{L[10]}</a>{('<a class="btn a" href="/#/apply">' + L[9] + '</a>') if s['public_registration'] == '1' else ''}</header>
 <main>{cover}<h1>{e(name)}</h1>{('<div class=s>' + e(s['club_reg_no']) + '</div>') if s['club_reg_no'] else ''}
 <div class="stats"><div><b>{st['members']}</b>{L[6]}</div><div><b>{st['books']}</b>{L[7]}</div><div><b>{st['events']}</b>{L[8]}</div></div>
 {('<h2>' + L[0] + '</h2><pre>' + e(about) + '</pre>') if about else ''}

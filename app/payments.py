@@ -27,11 +27,11 @@ def set_order_creator(fn):
 
 
 def configured():
-    return bool(os.environ.get("CLUB_RZP_KEY_ID") and os.environ.get("CLUB_RZP_KEY_SECRET"))
+    return bool(comms.cfg("CLUB_RZP_KEY_ID") and comms.cfg("CLUB_RZP_KEY_SECRET"))
 
 
 def _rzp(path, payload):
-    key, secret = os.environ["CLUB_RZP_KEY_ID"], os.environ["CLUB_RZP_KEY_SECRET"]
+    key, secret = comms.cfg("CLUB_RZP_KEY_ID"), comms.cfg("CLUB_RZP_KEY_SECRET")
     req = urllib.request.Request("https://api.razorpay.com/v1" + path, data=json.dumps(payload).encode(),
                                  headers={"Authorization": "Basic " + base64.b64encode(f"{key}:{secret}".encode()).decode(), "Content-Type": "application/json"}, method="POST")
     with urllib.request.urlopen(req, timeout=20) as r:
@@ -45,14 +45,14 @@ def create_order(amount_paise, receipt, notes):
 
 
 def verify_signature(order_id, payment_id, signature):
-    secret = os.environ.get("CLUB_RZP_KEY_SECRET", "")
+    secret = comms.cfg("CLUB_RZP_KEY_SECRET")
     expected = hmac.new(secret.encode(), f"{order_id}|{payment_id}".encode(), hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, signature or "")
 
 
 @router.get("/config")
 def config(user=Depends(current_user)):
-    return {"configured": configured() or bool(_create_order_override), "key_id": os.environ.get("CLUB_RZP_KEY_ID", "") if (configured() or _create_order_override) else "",
+    return {"configured": configured() or bool(_create_order_override), "key_id": comms.cfg("CLUB_RZP_KEY_ID") if (configured() or _create_order_override) else "",
             "club": db.setting("club_name_en"), "upi": bool(db.setting("upi_id"))}
 
 
@@ -78,7 +78,7 @@ async def order(request: Request, user=Depends(current_user)):
         gid = db.insert(c, "gateway_orders", {"provider": "razorpay", "order_id": o["id"], "member_id": user["member_id"], "amount": amount, "head": head,
                                               "year": int(b.get("year") or time.strftime("%Y")), "post_id": b.get("post_id") or None, "booking_id": b.get("booking_id") or None,
                                               "note": (b.get("note") or "")[:200], "status": "created", "created": time.time(), "raw": json.dumps(o)[:2000]})
-    return {"ok": True, "id": gid, "order_id": o["id"], "amount": amount, "key_id": os.environ.get("CLUB_RZP_KEY_ID", ""), "currency": "INR",
+    return {"ok": True, "id": gid, "order_id": o["id"], "amount": amount, "key_id": comms.cfg("CLUB_RZP_KEY_ID"), "currency": "INR",
             "prefill": {"name": m["name_en"], "contact": m["phone"], "email": m["email"]}, "description": i18n.label(i18n.HEAD_LABELS, head, "en")}
 
 
@@ -119,7 +119,7 @@ async def verify(request: Request, user=Depends(current_user)):
 async def webhook(request: Request):
     """Razorpay's server-to-server confirmation (payment.captured / order.paid), the safety net when the browser
     closes before /verify. Needs CLUB_RZP_WEBHOOK_SECRET; idempotent."""
-    secret = os.environ.get("CLUB_RZP_WEBHOOK_SECRET", "")
+    secret = comms.cfg("CLUB_RZP_WEBHOOK_SECRET")
     body = await request.body()
     if not secret:
         raise HTTPException(404)

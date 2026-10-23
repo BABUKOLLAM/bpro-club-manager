@@ -108,6 +108,24 @@ share a Drive folder with the service account's e-mail, then set `CLUB_GDRIVE_SA
 **Web Push**: nothing to configure - the VAPID key pair is generated on first use and kept in the database. Members
 turn notifications on under *My profile → Notification preferences* (the app must be served over HTTPS).
 
+## White label
+
+The product carries no fixed brand. Each club sets, under *Settings → Branding*:
+
+* **Logo** (PNG with a transparent background looks best). It appears in the app, on the public website, the handbook,
+  printed pages and the membership card, and is turned into the home-screen / app icon on phones.
+* **Primary and accent colours**. Every shade the app needs, in light and dark mode, is derived from these two, and the
+  text on them switches between white and dark automatically.
+* **App name** (the title and the installed app's name) and the **footer credit**.
+
+Each club can also enter **its own gateway accounts** under *Settings → Communication*: WhatsApp Cloud API, SMS,
+SMTP and Razorpay. A filled-in field is used for that club; a blank one falls back to the server's `.env`, so one
+server can run clubs with their own WhatsApp numbers and payment accounts next to clubs that share the operator's.
+Secrets are stored per club and shown masked.
+
+The operator's own brand lives on `/_platform`: a *product name* for the platform page and a *footer credit* that new
+clubs start with ("Powered by …"), which a club may change.
+
 ## Multi-club edition
 
 One installation can serve many clubs. Each club has its own database, uploads and backups under
@@ -158,6 +176,7 @@ app/backup.py      nightly backups, Google Drive upload and retention
 app/polls.py       polls and elections
 app/site.py        the public website page
 app/security.py    rate limiting and security headers
+app/brand.py       white label: palette from two colours, logo, generated app icons
 app/tenancy.py     multi-club registry, host → club resolution, per-club directories
 app/help.py        the bilingual handbook
 app/manage.py      create-admin, seed-demo, daily, tenants, tenant-add
