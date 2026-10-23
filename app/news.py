@@ -254,8 +254,9 @@ async def register(pid: int, request: Request, user=Depends(current_user)):
             it = db.one("SELECT max_entries FROM comp_items WHERE id=?", (item_id,))
             if it["max_entries"] and db.one("SELECT COUNT(*) n FROM registrations WHERE item_id=? AND status='registered'", (item_id,))["n"] >= it["max_entries"]:
                 status = "waitlisted"
+        team = (b.get("team") or "").strip() or (db.one("SELECT team, ward FROM members WHERE id=?", (user["member_id"],)) or {}).get("team") or ""
         rid = db.insert(c, "registrations", {"post_id": pid, "member_id": user["member_id"], "family_id": fam_id, "item_id": item_id, "participant_name": name,
-                                             "status": status, "note": (b.get("note") or "")[:500], "created": time.time(), "updated": time.time()})
+                                             "status": status, "note": (b.get("note") or "")[:500], "team": team[:60], "created": time.time(), "updated": time.time()})
         item = db.one("SELECT * FROM comp_items WHERE id=?", (item_id,)) if item_id else None
         comms.notify_members(c, [user["member_id"]], "registration_confirmed", {}, ("app", "whatsapp"), ref_kind="post", ref_id=pid,
                              per_member=lambda m: {"participant": name, "title": i18n.pick(p, "title", m["lang"]), "item": i18n.pick(item, "name", m["lang"]) if item else "-",
@@ -279,6 +280,23 @@ async def registration_status(rid: int, request: Request, user=Depends(current_u
     with db.tx() as c:
         db.update(c, "registrations", rid, {"status": st, "updated": time.time()})
     return {"ok": True}
+
+
+@router.post("/api/posts/{pid}/attend")
+async def attend_by_scan(pid: int, request: Request, user=Depends(require("posts.manage"))):
+    """Mark a scanned member as attended: their registration if one exists, else a new 'attended' registration."""
+    b = await request.json()
+    m = db.one("SELECT id, name_en FROM members WHERE id=? AND status='active'", (b.get("member_id"),))
+    if not m:
+        raise HTTPException(404, "member")
+    with db.tx() as c:
+        regs = db.q("SELECT id FROM registrations WHERE post_id=? AND member_id=? AND family_id IS NULL AND status<>'cancelled'", (pid, m["id"]))
+        if regs:
+            for r in regs:
+                db.update(c, "registrations", r["id"], {"status": "attended", "updated": time.time()})
+            return {"ok": True, "registration_id": regs[0]["id"], "new": False}
+        rid = db.insert(c, "registrations", {"post_id": pid, "member_id": m["id"], "participant_name": m["name_en"], "status": "attended", "created": time.time(), "updated": time.time()})
+    return {"ok": True, "registration_id": rid, "new": True}
 
 
 # ---------- results ----------
@@ -337,3 +355,166 @@ footer{{text-align:center;color:#8a948f;font-size:.8rem;padding:24px}}.lang{{flo
 <h1>{html.escape(title)}</h1><div class="meta">{html.escape(meta)}</div><pre>{html.escape(body)}</pre>{res_html}
 {"<a class='btn' href='/#/posts/" + str(pid) + "'>" + ('രജിസ്റ്റർ ചെയ്യുക' if lang == 'ml' else 'Register') + "</a>" if p['reg_open'] else ""}
 </main><footer>{html.escape(s['footer_credit'])}</footer></body></html>"""
+
+
+# ---------- fixtures (sports) ----------
+def _post_for_manage(pid):
+    p = db.one("SELECT * FROM posts WHERE id=? AND deleted=0", (pid,))
+    if not p:
+        raise HTTPException(404)
+    return p
+
+
+@router.get("/api/posts/{pid}/fixtures")
+def list_fixtures(pid: int, user=Depends(current_user)):
+    p = db.one("SELECT * FROM posts WHERE id=? AND deleted=0", (pid,))
+    if not p or not visible(user, p):
+        raise HTTPException(404)
+    return db.q("SELECT f.*, ci.name_en AS item_en, ci.name_ml AS item_ml FROM fixtures f LEFT JOIN comp_items ci ON ci.id=f.item_id WHERE f.post_id=? ORDER BY f.round, f.idx, f.id", (pid,))
+
+
+@router.post("/api/posts/{pid}/fixtures")
+async def save_fixture(pid: int, request: Request, user=Depends(require("posts.manage"))):
+    _post_for_manage(pid)
+    b = await request.json()
+    row = {k: (b.get(k) or "") for k in ("round", "side_a", "side_b", "scheduled_at", "venue", "score_a", "score_b", "winner", "note")}
+    row["item_id"] = b.get("item_id") or None
+    row["idx"] = int(b.get("idx") or 0)
+    row["status"] = b.get("status") if b.get("status") in ("scheduled", "live", "done", "cancelled") else "scheduled"
+    if not (row["side_a"] and row["side_b"]):
+        raise HTTPException(400, "both sides are needed")
+    if row["status"] == "done" and not row["winner"]:
+        try:
+            a, bb = float(row["score_a"]), float(row["score_b"])
+            row["winner"] = row["side_a"] if a > bb else row["side_b"] if bb > a else "draw"
+        except ValueError:
+            pass
+    with db.tx() as c:
+        if b.get("id"):
+            db.update(c, "fixtures", b["id"], row); fid = b["id"]
+        else:
+            row["post_id"] = pid; fid = db.insert(c, "fixtures", row)
+    return {"ok": True, "id": fid, "winner": row["winner"]}
+
+
+@router.delete("/api/posts/{pid}/fixtures/{fid}")
+def delete_fixture(pid: int, fid: int, user=Depends(require("posts.manage"))):
+    with db.tx() as c:
+        c.execute("DELETE FROM fixtures WHERE id=? AND post_id=?", (fid, pid))
+    return {"ok": True}
+
+
+# ---------- judges and scoring (arts) ----------
+@router.get("/api/posts/{pid}/judges")
+def list_judges(pid: int, user=Depends(require("posts.manage"))):
+    return db.q("SELECT j.*, u.name, u.login FROM post_judges j JOIN users u ON u.id=j.user_id WHERE j.post_id=?", (pid,))
+
+
+@router.post("/api/posts/{pid}/judges")
+async def save_judges(pid: int, request: Request, user=Depends(require("posts.manage"))):
+    """judges: [{user_id, item_ids: [..] or [] for all}]"""
+    _post_for_manage(pid)
+    b = await request.json()
+    with db.tx() as c:
+        c.execute("DELETE FROM post_judges WHERE post_id=?", (pid,))
+        for j in b.get("judges") or []:
+            if j.get("user_id") and db.one("SELECT 1 FROM users WHERE id=? AND active=1", (j["user_id"],)):
+                c.execute("INSERT OR REPLACE INTO post_judges(post_id, user_id, item_ids) VALUES(?,?,?)", (pid, int(j["user_id"]), ",".join(str(x) for x in (j.get("item_ids") or []))))
+    return {"ok": True}
+
+
+@router.get("/api/judging")
+def my_judging(user=Depends(current_user)):
+    """Events where the signed-in user is a judge."""
+    return db.q("SELECT p.id, p.title_en, p.title_ml, p.starts_at, j.item_ids FROM post_judges j JOIN posts p ON p.id=j.post_id WHERE j.user_id=? AND p.deleted=0 ORDER BY p.starts_at DESC", (user["id"],))
+
+
+def _judge_items(pid, user):
+    j = db.one("SELECT item_ids FROM post_judges WHERE post_id=? AND user_id=?", (pid, user["id"]))
+    if not j and not can(user, "posts.manage"):
+        raise HTTPException(403, "not a judge for this event")
+    ids = [int(x) for x in (j["item_ids"] if j else "").split(",") if x.strip().isdigit()]
+    return ids
+
+
+@router.get("/api/posts/{pid}/judging")
+def judging_sheet(pid: int, user=Depends(current_user)):
+    ids = _judge_items(pid, user)
+    items = db.q("SELECT * FROM comp_items WHERE post_id=? ORDER BY idx, id", (pid,))
+    if ids:
+        items = [i for i in items if i["id"] in ids]
+    regs = db.q("SELECT r.id, r.item_id, r.participant_name, r.team, r.status FROM registrations r WHERE r.post_id=? AND r.status IN ('registered','attended') ORDER BY r.item_id, r.id", (pid,))
+    mine = {(s["registration_id"], s["item_id"]): s for s in db.q("SELECT * FROM scores WHERE post_id=? AND judge_id=?", (pid, user["id"]))}
+    for r in regs:
+        sc = mine.get((r["id"], r["item_id"]))
+        r["score"], r["remark"] = (sc["score"], sc["remark"]) if sc else (None, "")
+    return {"items": items, "registrations": regs}
+
+
+@router.post("/api/posts/{pid}/scores")
+async def save_scores(pid: int, request: Request, user=Depends(current_user)):
+    ids = _judge_items(pid, user)
+    b = await request.json()
+    n = 0
+    with db.tx() as c:
+        for s_ in b.get("scores") or []:
+            reg = db.one("SELECT item_id FROM registrations WHERE id=? AND post_id=?", (s_.get("registration_id"), pid))
+            if not reg or (ids and reg["item_id"] not in ids):
+                continue
+            c.execute("INSERT INTO scores(post_id, item_id, registration_id, judge_id, score, remark, created) VALUES(?,?,?,?,?,?,?) "
+                      "ON CONFLICT(registration_id, judge_id, item_id) DO UPDATE SET score=excluded.score, remark=excluded.remark",
+                      (pid, reg["item_id"], s_["registration_id"], user["id"], float(s_.get("score") or 0), (s_.get("remark") or "")[:300], time.time()))
+            n += 1
+    return {"ok": True, "saved": n}
+
+
+@router.get("/api/posts/{pid}/ranking")
+def ranking(pid: int, user=Depends(require("posts.manage"))):
+    """Average of the judges' scores per participant, ranked within each item."""
+    rows = db.q("SELECT s.item_id, s.registration_id, r.participant_name, r.team, AVG(s.score) avg_score, COUNT(DISTINCT s.judge_id) judges, ci.name_en AS item_en, ci.name_ml AS item_ml "
+                "FROM scores s JOIN registrations r ON r.id=s.registration_id LEFT JOIN comp_items ci ON ci.id=s.item_id WHERE s.post_id=? GROUP BY s.item_id, s.registration_id ORDER BY s.item_id, avg_score DESC", (pid,))
+    out, pos, last_item = [], 0, None
+    for r in rows:
+        if r["item_id"] != last_item:
+            pos, last_item = 0, r["item_id"]
+        pos += 1
+        r["position"] = pos
+        r["avg_score"] = round(r["avg_score"], 2)
+        out.append(r)
+    return out
+
+
+@router.post("/api/posts/{pid}/results/from-ranking")
+async def results_from_ranking(pid: int, request: Request, user=Depends(require("posts.manage"))):
+    """Fill the results table from the ranking: top N per item with points N..1 (default 3: 5/3/1)."""
+    b = await request.json()
+    points = b.get("points") or [5, 3, 1]
+    rows = ranking(pid, user)
+    with db.tx() as c:
+        c.execute("DELETE FROM results WHERE post_id=?", (pid,))
+        for r in rows:
+            if r["position"] <= len(points):
+                db.insert(c, "results", {"post_id": pid, "item_id": r["item_id"], "position": r["position"], "registration_id": r["registration_id"], "participant_name": r["participant_name"],
+                                         "team": r["team"], "points": points[r["position"] - 1], "remark": f"avg {r['avg_score']}", "created": time.time()})
+        db.update(c, "posts", pid, {"results_at": time.time(), "updated": time.time()})
+    return {"ok": True, "results": sum(1 for r in rows if r["position"] <= len(points))}
+
+
+@router.get("/api/posts/{pid}/points")
+def points_table(pid: int, user=Depends(current_user)):
+    """Championship points by team (ward / house), from results and from won fixtures (3 points a win, 1 a draw)."""
+    p = db.one("SELECT * FROM posts WHERE id=? AND deleted=0", (pid,))
+    if not p or not visible(user, p):
+        raise HTTPException(404)
+    table = {}
+    for r in db.q("SELECT team, SUM(points) pts, COUNT(*) n, SUM(CASE WHEN position=1 THEN 1 ELSE 0 END) firsts FROM results WHERE post_id=? AND team<>'' GROUP BY team", (pid,)):
+        table[r["team"]] = {"team": r["team"], "points": r["pts"] or 0, "results": r["n"], "firsts": r["firsts"], "wins": 0, "draws": 0}
+    for f in db.q("SELECT side_a, side_b, winner FROM fixtures WHERE post_id=? AND status='done'", (pid,)):
+        for side in (f["side_a"], f["side_b"]):
+            table.setdefault(side, {"team": side, "points": 0, "results": 0, "firsts": 0, "wins": 0, "draws": 0})
+        if f["winner"] == "draw":
+            for side in (f["side_a"], f["side_b"]):
+                table[side]["points"] += 1; table[side]["draws"] += 1
+        elif f["winner"] in table:
+            table[f["winner"]]["points"] += 3; table[f["winner"]]["wins"] += 1
+    return sorted(table.values(), key=lambda t: (-t["points"], -t["firsts"], t["team"]))

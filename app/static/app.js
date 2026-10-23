@@ -109,12 +109,15 @@ function navItems() {
   if (m || can('members.view')) items.push({ h: '#/directory', l: t('directory') });
   items.push({ h: '#/committees', l: t('committees') }); items.push({ h: '#/meetings', l: t('meetings') }); items.push({ h: '#/actions', l: t('actions') }); items.push({ h: '#/plans', l: t('plans') });
   items.push({ h: '#/library', l: t('library') }); if (m) { items.push({ h: '#/library/mine', l: t('my_books') }); items.push({ h: '#/payments', l: t('payments') }); }
+  items.push({ h: '#/documents', l: t('documents') }); items.push({ h: '#/bookings', l: t('bookings') });
+  if (S.judging) items.push({ h: '#/judging', l: t('judging') });
   const office = [];
+  if (can('members.view') || can('library.manage') || can('posts.manage') || (u.convenes || []).length) office.push({ h: '#/scan', l: t('scan') });
   if (can('members.manage')) office.push({ h: '#/applications', l: t('applications') });
   if (can('members.view')) office.push({ h: '#/members', l: t('members') });
   if (can('broadcast.send')) office.push({ h: '#/broadcast', l: t('broadcast') });
   if (can('outbox.view')) office.push({ h: '#/outbox', l: t('outbox') });
-  if (can('library.manage')) { office.push({ h: '#/library/circulation', l: t('circulation') }); office.push({ h: '#/library/reading-room', l: t('reading_room') }); office.push({ h: '#/library/periodicals', l: t('periodicals') }); }
+  if (can('library.manage')) { office.push({ h: '#/library/circulation', l: t('circulation') }); office.push({ h: '#/library/reading-room', l: t('reading_room') }); office.push({ h: '#/library/periodicals', l: t('periodicals') }); office.push({ h: '#/assets', l: t('assets') }); }
   if (can('finance.view')) { office.push({ h: '#/finance', l: t('accounts') }); office.push({ h: '#/finance/dues', l: t('dues') }); }
   if (can('reports.view')) office.push({ h: '#/reports', l: t('reports') });
   if (can('users.manage')) office.push({ h: '#/users', l: t('users') });
@@ -146,8 +149,13 @@ async function viewLanding() {
   bindLogin();
 }
 function newsCard(p) { return `<div class="news-card" onclick="${S.user ? `nav('#/posts/${p.id}')` : `location.href='/p/${p.id}?lang=${S.lang}'`}">${p.cover ? `<img src="/uploads/${esc(p.cover)}" alt="">` : ''}<div class="b"><div class="t">${esc(bil(p, 'title'))}</div><div class="s">${esc(t(p.kind === 'news' ? 'news_item' : p.kind))}${p.starts_at ? ' · ' + esc(fmtDT(p.starts_at)) : ''}${bil(p, 'venue') ? ' · ' + esc(bil(p, 'venue')) : ''}</div></div></div>`; }
-function loginFormHtml() { return `<h2>${t('sign_in')}</h2><form id="login-f" class="stack" onsubmit="return false">${F.text('login', t('login'), '', { req: true, attrs: 'autocomplete="username"' })}${F.text('password', t('password'), '', { req: true, type: 'password', attrs: 'autocomplete="current-password"' })}<button class="btn block" id="login-b">${t('sign_in')}</button><div class="small muted">${t('forgot')}</div>${S.info && S.info.public_registration === '1' ? `<div class="small">${t('no_account')} <a href="#/apply">${t('apply')}</a></div>` : ''}</form>`; }
+function loginFormHtml() { return `<h2>${t('sign_in')}</h2><form id="login-f" class="stack" onsubmit="return false">${F.text('login', t('login'), '', { req: true, attrs: 'autocomplete="username"' })}${F.text('password', t('password'), '', { req: true, type: 'password', attrs: 'autocomplete="current-password"' })}<button class="btn block" id="login-b">${t('sign_in')}</button><div class="small"><a href="#" onclick="A.forgot();return false">${t('forgot')}</a></div>${S.info && S.info.public_registration === '1' ? `<div class="small">${t('no_account')} <a href="#/apply">${t('apply')}</a></div>` : ''}</form>`; }
 function bindLogin() { const f = document.getElementById('login-f'); if (!f) return; document.getElementById('login-b').onclick = async () => { if (!f.reportValidity()) return; const b = readForm(f); try { await post('/api/auth/login', b); await App.me(); nav('#/'); } catch (e) {} }; }
+A.forgot = () => formSheet(t('forgot'), `<p class="full small muted">${t('forgot_intro')}</p>${F.text('login', t('login'), '', { req: true, full: true })}`, async b => {
+  const r = await post('/api/auth/forgot', b); closeSheet();
+  formSheet(t('forgot'), `<p class="full small muted">${t('code_sent')}</p>${F.text('code', t('code'), '', { req: true, full: true, attrs: 'inputmode="numeric" autocomplete="one-time-code"' })}${F.text('password', t('new_password'), '', { req: true, full: true, type: 'password', attrs: 'minlength="8" autocomplete="new-password"' })}`,
+    async b2 => { await post('/api/auth/reset', { ...b2, ticket: r.ticket }); closeSheet(); toast(t('reset_done'), 'ok'); await App.me(); nav('#/'); }, { saveLabel: t('sign_in') });
+}, { saveLabel: t('send_code') });
 async function viewLogin() { render(pubShell(`<div class="card" style="max-width:440px;margin:0 auto">${loginFormHtml()}</div>`)); bindLogin(); }
 async function viewApply() {
   const info = S.info; const types = info.membership_types.map(x => [x.key, (S.lang === 'ml' ? x.ml : x.en) + (x.admission || x.annual ? ` (${t('admission')} ₹${x.admission}, ${t('annual')} ₹${x.annual})` : '')]);
@@ -160,6 +168,7 @@ async function viewApply() {
   ${info.wards.length ? F.select('ward', t('ward'), '', info.wards.map(w => [w, w])) : F.text('ward', t('ward'))}${F.text('pincode', t('pincode'))}${F.text('occupation', t('occupation'))}${F.text('education', t('education'))}
   ${F.select('membership_type', t('membership_type'), 'ordinary', types, { blank: false })}${F.text('interests', t('interests'))}${F.text('id_proof', t('id_proof'))}${F.select('lang', t('lang_pref'), S.lang, [['ml', 'മലയാളം'], ['en', 'English']], { blank: false })}
   <div class="full"><h3>${t('family_members')}</h3><div id="fam"></div><button type="button" class="btn ghost sm" id="add-fam" style="margin-top:8px">+ ${t('add_family')}</button></div>
+  ${F.file('photo_file', t('take_photo'), { attrs: 'capture="user"' })}
   ${F.text('password', t('choose_password'), '', { req: true, type: 'password', attrs: 'minlength="8" autocomplete="new-password"' })}${F.text('password2', t('confirm_password'), '', { req: true, type: 'password', attrs: 'autocomplete="new-password"' })}
   <div class="full"><h3>${t('preferences')}</h3><div class="chks">${F.chk('notify_whatsapp', t('notify_whatsapp'), 1)}${F.chk('notify_sms', t('notify_sms'), 1)}${F.chk('notify_email', t('notify_email'), 1)}${F.chk('show_phone', t('show_phone'), 1)}</div></div>
   <div class="full actions"><button class="btn accent" id="apply-b">${t('apply')}</button><a class="btn ghost" href="#/">${t('cancel')}</a></div></form></div>`));
@@ -169,6 +178,8 @@ async function viewApply() {
     if (b.password !== b.password2) return toast(t('pw_mismatch'), 'bad');
     b.family = [...document.querySelectorAll('.fam-row')].map(r => { const o = {}; r.querySelectorAll('[name]').forEach(el => o[el.name.replace(/^f_/, '')] = el.value); return o; });
     for (const k of Object.keys(b)) if (k.startsWith('f_')) delete b[k];
+    const pf = f.querySelector('[name=photo_file]');
+    try { if (pf && pf.files[0]) { const fd = new FormData(); fd.append('file', pf.files[0]); b.photo = (await api('POST', '/api/public/photo', fd)).path; } } catch (e) { return; }
     try { await post('/api/public/apply', b); render(pubShell(`<div class="card center" style="max-width:560px;margin:0 auto"><h1>✓</h1><p>${t('apply_done')}</p><a class="btn" href="#/">${t('back')}</a></div>`)); } catch (e) {}
   };
 }
@@ -201,10 +212,31 @@ async function viewMe(tab) {
     <dt>${t('house')}</dt><dd>${esc(bil(m, 'house') || '-')}</dd><dt>${t('address')}</dt><dd>${esc(bil(m, 'address') || '-')}</dd><dt>${t('ward')}</dt><dd>${esc(m.ward || '-')}</dd><dt>${t('occupation')}</dt><dd>${esc(m.occupation || '-')}</dd><dt>${t('joined_on')}</dt><dd>${esc(fmtDate(m.joined_on))}</dd></dl>
     ${m.committees.length ? `<h3 style="margin-top:14px">${t('committees')}</h3>${m.committees.map(c => `<div><a href="#/committees/${c.committee_id}">${esc(bil(c, 'committee'))}</a> · ${esc(bil(c, 'designation') || t(c.role))}</div>`).join('')}` : ''}</div>`;
   else if (tab === 'family') body = familyHtml(m, true);
-  else if (tab === 'preferences') body = `<div class="card"><form class="form" id="pref-f" onsubmit="return false"><div class="full chks">${F.chk('notify_whatsapp', t('notify_whatsapp'), m.notify_whatsapp)}${F.chk('notify_sms', t('notify_sms'), m.notify_sms)}${F.chk('notify_email', t('notify_email'), m.notify_email)}</div>${F.chk('show_phone', t('show_phone'), m.show_phone, { full: true })}${F.select('lang', t('lang_pref'), m.lang, [['ml', 'മലയാളം'], ['en', 'English']], { blank: false })}<div class="full actions"><button class="btn" onclick="A.savePrefs()">${t('save')}</button></div></form></div>`;
+  else if (tab === 'preferences') body = `<div class="card"><form class="form" id="pref-f" onsubmit="return false"><div class="full chks">${F.chk('notify_whatsapp', t('notify_whatsapp'), m.notify_whatsapp)}${F.chk('notify_sms', t('notify_sms'), m.notify_sms)}${F.chk('notify_email', t('notify_email'), m.notify_email)}</div>${F.chk('show_phone', t('show_phone'), m.show_phone, { full: true })}${F.select('lang', t('lang_pref'), m.lang, [['ml', 'മലയാളം'], ['en', 'English']], { blank: false })}<div class="full actions"><button class="btn" onclick="A.savePrefs()">${t('save')}</button></div></form>
+    <h3 style="margin-top:16px">${t('push_notifications')}</h3><div id="push-box" class="row"><span class="muted">…</span></div></div>`;
   else if (tab === 'password') body = `<div class="card" style="max-width:480px"><form class="form" id="pw-f" onsubmit="return false">${F.text('current', t('current_password'), '', { type: 'password', req: true, full: true })}${F.text('new', t('new_password'), '', { type: 'password', req: true, full: true, attrs: 'minlength="8"' })}<div class="full actions"><button class="btn" onclick="A.changePw()">${t('save')}</button></div></form></div>`;
   render(page(t('me'), '', '', T + body));
+  if (tab === 'preferences') renderPushBox();
 }
+function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+async function renderPushBox() {
+  const box = document.getElementById('push-box'); if (!box) return;
+  if (!pushSupported()) { box.innerHTML = `<span class="muted small">${t('push_unsupported')}</span>`; return; }
+  const reg = await navigator.serviceWorker.getRegistration(); const sub = reg ? await reg.pushManager.getSubscription() : null;
+  box.innerHTML = sub ? `<span class="pill ok">${t('push_on')}</span> <button class="btn ghost sm" onclick="A.pushToggle(false)">${t('push_disable')}</button>` : `<span class="pill">${t('push_off')}</span> <button class="btn sm" onclick="A.pushToggle(true)">${t('push_enable')}</button>`;
+}
+A.pushToggle = async on => {
+  try {
+    const reg = await navigator.serviceWorker.register('/sw.js'); await navigator.serviceWorker.ready;
+    if (on) {
+      if ((await Notification.requestPermission()) !== 'granted') return toast(t('push_unsupported'), 'bad');
+      const key = (await get('/api/push/key')).key; const raw = atob(key.replace(/-/g, '+').replace(/_/g, '/')); const arr = new Uint8Array([...raw].map(c => c.charCodeAt(0)));
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: arr });
+      await post('/api/push/subscribe', sub.toJSON()); toast(t('push_on'), 'ok');
+    } else { const sub = await reg.pushManager.getSubscription(); if (sub) { await post('/api/push/unsubscribe', { endpoint: sub.endpoint }); await sub.unsubscribe(); } }
+  } catch (e) { toast(e.message, 'bad'); }
+  renderPushBox();
+};
 function familyHtml(m, own) {
   const rows = m.family || [];
   return `<div class="card"><div class="row between"><h2>${t('family_members')}</h2><button class="btn sm" onclick="A.editFamily(${m.id})">+ ${t('add_family')}</button></div>
@@ -255,11 +287,11 @@ R('/notifications', viewNotifications);
 
 // ---------- app ----------
 const App = {
-  async me() { const r = await get('/api/auth/me', { quiet: true }); S.user = r.user; S.member = r.member; S.info = r.info; S.settings = r.settings; S.unread = r.unread || 0; if (S.user && S.user.lang && !localStorage.getItem('club_lang_set')) { S.lang = S.user.lang; localStorage.setItem('club_lang', S.lang); } document.documentElement.lang = S.lang; document.title = S.info.club_short || 'Club'; },
+  async me() { const r = await get('/api/auth/me', { quiet: true }); S.user = r.user; S.member = r.member; S.info = r.info; S.settings = r.settings; S.unread = r.unread || 0; S.judging = r.judging || 0; if (S.user && S.user.lang && !localStorage.getItem('club_lang_set')) { S.lang = S.user.lang; localStorage.setItem('club_lang', S.lang); } document.documentElement.lang = S.lang; document.title = S.info.club_short || 'Club'; },
   async start() {
     try { await this.me(); } catch (e) { render(`<div class="empty">${t('error')}<br><button class="btn" onclick="location.reload()">${t('retry')}</button></div>`); return; }
     window.addEventListener('hashchange', () => this.route());
-    if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('/sw.js').catch(() => {});
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) navigator.serviceWorker.register('/sw.js').catch(() => {});
     this.route();
   },
   async route() {

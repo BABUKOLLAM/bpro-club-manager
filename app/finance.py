@@ -180,7 +180,8 @@ def my_payments(user=Depends(current_user)):
     if not mid:
         return {"dues": [], "receipts": []}
     return {"dues": db.q("SELECT * FROM subscriptions WHERE member_id=? AND status='due' ORDER BY year", (mid,)),
-            "receipts": db.q("SELECT * FROM transactions WHERE member_id=? AND kind='receipt' AND void=0 ORDER BY tx_date DESC, id DESC LIMIT 100", (mid,))}
+            "receipts": db.q("SELECT * FROM transactions WHERE member_id=? AND kind='receipt' AND void=0 ORDER BY tx_date DESC, id DESC LIMIT 100", (mid,)),
+            "claims": db.q("SELECT * FROM payment_claims WHERE member_id=? ORDER BY id DESC LIMIT 20", (mid,)), "upi": bool(db.setting("upi_id"))}
 
 
 @router.get("/export.csv")
@@ -194,3 +195,81 @@ def export_csv(year: int = 0, user=Depends(require("finance.view"))):
         for r in rows:
             w.writerow(r.values())
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f"attachment; filename=accounts-{year}.csv"})
+
+
+# ---------- UPI payment claims ----------
+def upi_link(amount, note, member_no=""):
+    import urllib.parse
+    pa, pn = db.setting("upi_id"), db.setting("upi_name") or db.setting("club_short")
+    if not pa:
+        return ""
+    q = {"pa": pa, "pn": pn, "cu": "INR", "tn": (f"{member_no} {note}").strip()[:40]}
+    if amount:
+        q["am"] = f"{float(amount):.2f}"
+    return "upi://pay?" + urllib.parse.urlencode(q)
+
+
+@router.get("/upi")
+def upi_info(amount: float = 0, note: str = "", user=Depends(current_user)):
+    """The UPI deep link and a QR image for the signed-in member's dues (or any amount)."""
+    m = db.one("SELECT member_no FROM members WHERE id=?", (user.get("member_id"),)) if user.get("member_id") else None
+    link = upi_link(amount, note or "subscription", m["member_no"] if m else "")
+    if not link:
+        return {"configured": False}
+    import segno
+    return {"configured": True, "link": link, "qr": segno.make(link, error="m").svg_data_uri(scale=5, border=2), "upi_id": db.setting("upi_id"), "upi_name": db.setting("upi_name")}
+
+
+@router.post("/claims")
+async def claim_payment(request: Request, user=Depends(current_user)):
+    """A member says 'I have paid by UPI'. The treasurer confirms it into a receipt."""
+    if not user.get("member_id"):
+        raise HTTPException(403, "members only")
+    b = await request.json()
+    amount = float(b.get("amount") or 0)
+    if amount <= 0:
+        raise HTTPException(400, "amount")
+    utr = (b.get("utr") or "").strip()
+    if len(utr) < 6:
+        raise HTTPException(400, "enter the UPI transaction / UTR number")
+    head = b.get("head") if b.get("head") in i18n.RECEIPT_HEADS else "subscription"
+    with db.tx() as c:
+        if db.one("SELECT 1 FROM payment_claims WHERE utr=? AND status<>'rejected'", (utr,)):
+            raise HTTPException(409, "that transaction is already recorded")
+        cid = db.insert(c, "payment_claims", {"member_id": user["member_id"], "amount": amount, "utr": utr, "paid_on": b.get("paid_on") or dt.date.today().isoformat(), "head": head,
+                                              "year": int(b.get("year") or dt.date.today().year), "note": (b.get("note") or "")[:300], "status": "pending", "created": time.time()})
+        comms.notify_members(c, [user["member_id"]], "payment_claimed", {"amount": f"{amount:,.0f}", "utr": utr}, ("app", "whatsapp"), ref_kind="claim", ref_id=cid)
+        for o in [r["member_id"] for r in db.q("SELECT member_id FROM users WHERE role IN ('admin','treasurer','secretary') AND member_id IS NOT NULL AND active=1")]:
+            comms.queue(c, "app", "", "UPI payment to confirm", f"{user['name']} · Rs {amount:,.0f} · {utr}", member_id=o, ref_kind="claims")
+        db.audit(c, user["id"], "claim.create", "claim", cid, f"{amount} {utr}")
+    return {"ok": True, "id": cid}
+
+
+@router.get("/claims")
+def list_claims(status: str = "pending", user=Depends(current_user)):
+    if can(user, "finance.view"):
+        where, args = ("c.status=?", [status]) if status and status != "all" else ("1=1", [])
+    else:
+        where, args = "c.member_id=?", [user.get("member_id") or -1]
+    return db.q(f"SELECT c.*, m.name_en, m.name_ml, m.member_no, m.phone FROM payment_claims c JOIN members m ON m.id=c.member_id WHERE {where} ORDER BY c.id DESC LIMIT 300", args)
+
+
+@router.post("/claims/{cid}/decide")
+async def decide_claim(cid: int, request: Request, user=Depends(require("finance.manage"))):
+    b = await request.json()
+    cl = db.one("SELECT * FROM payment_claims WHERE id=? AND status='pending'", (cid,))
+    if not cl:
+        raise HTTPException(404, "not a pending claim")
+    decision, note = b.get("decision"), (b.get("note") or "").strip()
+    with db.tx() as c:
+        if decision == "confirm":
+            r = record(c, user["id"], {"kind": "receipt", "head": cl["head"], "member_id": cl["member_id"], "amount": float(b.get("amount") or cl["amount"]), "mode": "upi", "ref": cl["utr"],
+                                       "tx_date": cl["paid_on"] or dt.date.today().isoformat(), "year": cl["year"], "note": note or cl["note"]})
+            db.update(c, "payment_claims", cid, {"status": "confirmed", "receipt_id": r["id"], "decided_by": user["id"], "decided_at": time.time(), "decision_note": note})
+            return {"ok": True, "receipt": r["no"]}
+        if decision == "reject":
+            db.update(c, "payment_claims", cid, {"status": "rejected", "decided_by": user["id"], "decided_at": time.time(), "decision_note": note})
+            comms.notify_members(c, [cl["member_id"]], "payment_rejected", {"amount": f"{cl['amount']:,.0f}", "utr": cl["utr"], "note": note}, ("app", "whatsapp"), ref_kind="claim", ref_id=cid)
+            db.audit(c, user["id"], "claim.reject", "claim", cid, note)
+            return {"ok": True}
+    raise HTTPException(400, "decision")

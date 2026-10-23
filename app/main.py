@@ -13,9 +13,9 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, Up
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, comms, db, i18n
+from . import auth, comms, db, i18n, push
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, reports, scheduler
+from . import members, news, committees, library, finance, reports, scheduler, facilities
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -89,6 +89,8 @@ def public_info():
     out["blood_groups"] = members.BLOOD_GROUPS
     out["relations"] = members.RELATIONS
     out["channels"] = comms.configured()
+    out["upi_id"] = s["upi_id"]
+    out["upi_name"] = s["upi_name"]
     return out
 
 
@@ -132,7 +134,8 @@ def me(request: Request):
         return {"user": None, "info": public_info()}
     m = db.one("SELECT * FROM members WHERE id=?", (u["member_id"],)) if u["member_id"] else None
     unread = db.one("SELECT COUNT(*) n FROM notifications WHERE member_id=? AND read_at IS NULL", (u["member_id"] or -1,))["n"]
-    return {"user": u, "member": m, "unread": unread, "info": public_info(), "settings": settings_for(u)}
+    judging = db.one("SELECT COUNT(*) n FROM post_judges j JOIN posts p ON p.id=j.post_id WHERE j.user_id=? AND p.deleted=0", (u["id"],))["n"]
+    return {"user": u, "member": m, "unread": unread, "info": public_info(), "settings": settings_for(u), "judging": judging}
 
 
 def settings_for(u):
@@ -142,6 +145,9 @@ def settings_for(u):
     s["channels"] = comms.configured()
     s["heads"] = {"receipt": i18n.RECEIPT_HEADS, "payment": i18n.PAYMENT_HEADS, "labels": i18n.HEAD_LABELS}
     s["roles"] = auth.ROLE_LABELS
+    s["teams"] = json.loads(s["teams"])
+    s["doc_categories"] = DOC_CATEGORIES
+    s["asset_categories"] = facilities.ASSET_CATEGORIES
     s["perms"] = {k: sorted(v) for k, v in auth.PERMS.items()}
     return s
 
@@ -171,6 +177,157 @@ async def set_lang(request: Request, user=Depends(current_user)):
         if user["member_id"]:
             c.execute("UPDATE members SET lang=? WHERE id=?", (lang, user["member_id"]))
     return {"ok": True}
+
+
+@app.post("/api/auth/forgot")
+async def forgot(request: Request):
+    """Send a one-time code by WhatsApp / SMS / e-mail to the member's registered contact; answers the same whether
+    or not the login exists, so it cannot be used to probe for members."""
+    body = await request.json()
+    login_ = auth.norm_login(body.get("login"))
+    u = db.one("SELECT u.*, m.phone, m.whatsapp, m.email, m.lang AS mlang FROM users u LEFT JOIN members m ON m.id=u.member_id WHERE u.login=? AND u.active=1", (login_,))
+    if not u and login_ and "@" not in login_:
+        m = db.one("SELECT id FROM members WHERE substr(replace(replace(phone,' ',''),'-',''), -10)=? AND status='active'", (login_,))
+        if m:
+            u = db.one("SELECT u.*, m.phone, m.whatsapp, m.email, m.lang AS mlang FROM users u JOIN members m ON m.id=u.member_id WHERE u.member_id=? AND u.active=1", (m["id"],))
+    ticket = secrets.token_urlsafe(24)
+    if u:
+        code = f"{secrets.randbelow(900000) + 100000}"
+        phone = u.get("whatsapp") or u.get("phone") or (login_ if "@" not in login_ else "")
+        email = u.get("email") or (login_ if "@" in login_ else "")
+        with db.tx() as c:
+            c.execute("DELETE FROM login_codes WHERE user_id=? OR expires<?", (u["id"], time.time()))
+            c.execute("INSERT INTO login_codes(ticket_hash, user_id, code_hash, expires) VALUES(?,?,?,?)",
+                      (auth.hash_token(ticket), u["id"], auth.hash_token(code), time.time() + 600))
+            comms.notify_contact(c, phone, email, "password_reset", {"code": code}, u.get("mlang") or u.get("lang") or "ml", ("whatsapp", "sms", "email"), ref_kind="user", ref_id=u["id"])
+            db.audit(c, u["id"], "password.code")
+    else:
+        time.sleep(0.3)
+    return {"ok": True, "ticket": ticket, "channels": [k for k, v in comms.configured().items() if v and k != "app"]}
+
+
+@app.post("/api/auth/reset")
+async def reset(request: Request, resp: Response):
+    body = await request.json()
+    ticket, code, new = body.get("ticket") or "", (body.get("code") or "").strip(), body.get("password") or ""
+    row = db.one("SELECT * FROM login_codes WHERE ticket_hash=?", (auth.hash_token(ticket),))
+    if not row or row["expires"] < time.time():
+        raise HTTPException(400, "code expired - request a new one")
+    if row["attempts"] >= 5:
+        raise HTTPException(429, "too many attempts - request a new code")
+    if not secrets.compare_digest(auth.hash_token(code), row["code_hash"]):
+        with db.tx() as c:
+            c.execute("UPDATE login_codes SET attempts=attempts+1 WHERE ticket_hash=?", (row["ticket_hash"],))
+        raise HTTPException(400, "wrong code")
+    if len(new) < 8:
+        raise HTTPException(400, "new password must be at least 8 characters")
+    with db.tx() as c:
+        c.execute("UPDATE users SET pw_hash=? WHERE id=?", (auth.hash_pw(new), row["user_id"]))
+        c.execute("DELETE FROM sessions WHERE user_id=?", (row["user_id"],))
+        c.execute("DELETE FROM login_codes WHERE ticket_hash=?", (row["ticket_hash"],))
+        token = auth.create_session(c, row["user_id"])
+        db.audit(c, row["user_id"], "password.reset")
+    auth.set_cookie(resp, token)
+    return {"ok": True}
+
+
+@app.post("/api/public/photo")
+def public_photo(file: UploadFile = File(...)):
+    """An applicant's photo, before they have an account. Images only, 4 MB, stored with the member photos."""
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(400, "image only")
+    rel, mime = save_upload(file, "members", max_mb=4)
+    return {"path": rel}
+
+
+@app.get("/api/scan/{code:path}")
+def scan(code: str, user=Depends(current_user)):
+    """Resolve the text in a membership-card QR (MEMBER:<no>|<name>) or a bare membership number to a member."""
+    if not (can(user, "members.view") or can(user, "library.manage") or can(user, "posts.manage") or user.get("convenes")):
+        raise HTTPException(403, "no")
+    no = code.split("|")[0].replace("MEMBER:", "").strip()
+    m = db.one("SELECT id, member_no, name_en, name_ml, status, photo, phone, blood_group FROM members WHERE member_no=?", (no,))
+    if not m:
+        raise HTTPException(404, "no member with that number")
+    return m
+
+
+@app.get("/api/push/key")
+def push_key(user=Depends(current_user)):
+    return {"key": push.public_key(), "subscribed": bool(db.one("SELECT 1 FROM push_subs WHERE user_id=?", (user["id"],)))}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request, user=Depends(current_user)):
+    sub = await request.json()
+    keys = sub.get("keys") or {}
+    if not (sub.get("endpoint") and keys.get("p256dh") and keys.get("auth")):
+        raise HTTPException(400, "subscription")
+    with db.tx() as c:
+        c.execute("INSERT INTO push_subs(user_id, member_id, endpoint, p256dh, auth, created) VALUES(?,?,?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET user_id=excluded.user_id, member_id=excluded.member_id, p256dh=excluded.p256dh, auth=excluded.auth, failures=0",
+                  (user["id"], user.get("member_id"), sub["endpoint"], keys["p256dh"], keys["auth"], time.time()))
+    return {"ok": True}
+
+
+@app.post("/api/push/unsubscribe")
+async def push_unsubscribe(request: Request, user=Depends(current_user)):
+    sub = await request.json()
+    with db.tx() as c:
+        if sub.get("endpoint"):
+            c.execute("DELETE FROM push_subs WHERE endpoint=? AND user_id=?", (sub["endpoint"], user["id"]))
+        else:
+            c.execute("DELETE FROM push_subs WHERE user_id=?", (user["id"],))
+    return {"ok": True}
+
+
+# ---------- documents ----------
+DOC_CATEGORIES = ["bylaws", "circular", "minutes", "report", "audit", "form", "certificate", "other"]
+
+
+@app.get("/api/documents")
+def list_documents(category: str = "", user=Depends(current_user)):
+    rows = db.q("SELECT d.*, u.name AS by_name, c.name_en AS committee_en, c.name_ml AS committee_ml FROM documents d LEFT JOIN users u ON u.id=d.created_by LEFT JOIN committees c ON c.id=d.committee_id "
+                "WHERE d.deleted=0 " + ("AND d.category=? " if category else "") + "ORDER BY d.category, d.year DESC, d.id DESC", (category,) if category else ())
+    out = []
+    for d in rows:
+        if d["audience"] == "committee" and not (can(user, "posts.manage") or auth.committee_role(user, d["committee_id"] or 0)):
+            continue
+        if d["audience"] == "members" and not (user.get("member_id") or can(user, "posts.manage")):
+            continue
+        out.append(d)
+    return out
+
+
+@app.post("/api/documents")
+async def save_document(request: Request, user=Depends(require("posts.manage"))):
+    b = await request.json()
+    row = {"title_en": b.get("title_en") or b.get("title_ml") or "", "title_ml": b.get("title_ml") or "", "category": b.get("category") if b.get("category") in DOC_CATEGORIES else "other",
+           "audience": b.get("audience") if b.get("audience") in ("public", "members", "committee") else "members", "committee_id": b.get("committee_id") or None,
+           "year": str(b.get("year") or ""), "note": b.get("note") or ""}
+    if not row["title_en"]:
+        raise HTTPException(400, "title")
+    with db.tx() as c:
+        if b.get("id"):
+            db.update(c, "documents", b["id"], row); did = b["id"]
+        else:
+            if not b.get("path"):
+                raise HTTPException(400, "file")
+            row.update({"path": b["path"], "mime": b.get("mime") or "", "size": int(b.get("size") or 0), "created_by": user["id"], "created": time.time()})
+            did = db.insert(c, "documents", row)
+        db.audit(c, user["id"], "document.save", "document", did, row["title_en"])
+    return {"ok": True, "id": did}
+
+
+@app.delete("/api/documents/{did}")
+def delete_document(did: int, user=Depends(require("posts.manage"))):
+    with db.tx() as c:
+        db.update(c, "documents", did, {"deleted": 1})
+    return {"ok": True}
+
+
+@app.get("/api/public/documents")
+def public_documents():
+    return db.q("SELECT id, title_en, title_ml, category, path, year FROM documents WHERE deleted=0 AND audience='public' ORDER BY category, year DESC")
 
 
 # ---------- users (office bearers) ----------
@@ -226,7 +383,7 @@ async def save_settings(request: Request, user=Depends(require("settings.manage"
         for k, v in b.items():
             if k not in db.DEFAULT_SETTINGS:
                 continue
-            if k in ("membership_types", "wards"):
+            if k in ("membership_types", "wards", "teams"):
                 v = json.dumps(v if isinstance(v, list) else json.loads(v or "[]"))
             db.set_setting(c, k, v)
         db.audit(c, user["id"], "settings.save", detail=",".join(b.keys()))
@@ -270,10 +427,10 @@ def save_upload(upload: UploadFile, folder, max_mb=8):
 def upload(folder: str, file: UploadFile = File(...), user=Depends(current_user)):
     if folder not in ("posts", "members", "books", "docs"):
         raise HTTPException(400, "folder")
-    if folder in ("posts", "books") and not (can(user, "posts.manage") or can(user, "library.manage")):
+    if folder in ("posts", "books", "docs") and not (can(user, "posts.manage") or can(user, "library.manage")):
         raise HTTPException(403, "no")
-    rel, mime = save_upload(file, folder)
-    return {"path": rel, "mime": mime, "url": f"/uploads/{rel}"}
+    rel, mime = save_upload(file, folder, max_mb=20 if folder == "docs" else 8)
+    return {"path": rel, "mime": mime, "url": f"/uploads/{rel}", "size": os.path.getsize(os.path.join(db.UPLOAD_DIR, rel))}
 
 
 @app.get("/uploads/{path:path}")
@@ -281,7 +438,8 @@ def serve_upload(path: str, request: Request):
     if ".." in path or path.startswith("/"):
         raise HTTPException(404)
     if not path.startswith("posts/") and not auth.user_from_request(request):
-        raise HTTPException(401, "sign in")
+        if not (path.startswith("docs/") and db.one("SELECT 1 FROM documents WHERE path=? AND audience='public' AND deleted=0", (path,))):
+            raise HTTPException(401, "sign in")
     full = os.path.join(db.UPLOAD_DIR, path)
     if not os.path.isfile(full):
         raise HTTPException(404)
@@ -350,15 +508,32 @@ async def broadcast(request: Request, user=Depends(require("broadcast.send"))):
         raise HTTPException(400, "message is empty")
     ids = members.audience_ids(b.get("audience") or {})
     batch = comms.new_batch()
+    send_at = None
+    if b.get("send_at"):
+        try:
+            send_at = dt.datetime.fromisoformat(b["send_at"]).timestamp()
+        except ValueError:
+            raise HTTPException(400, "send_at")
     with db.tx() as c:
         n = comms.notify_members(c, ids, "broadcast", {"subject": b.get("subject") or db.setting("club_short")}, channels, ref_kind="broadcast",
-                                 batch_id=batch, created_by=user["id"],
+                                 batch_id=batch, created_by=user["id"], not_before=send_at,
                                  per_member=lambda m: {"body": (body_ml if (m.get("lang") == "ml" and body_ml) else (body_en or body_ml))})
         bid = db.insert(c, "broadcasts", {"created": time.time(), "created_by": user["id"], "audience": json.dumps(b.get("audience") or {}),
                                           "channels": ",".join(channels), "subject": b.get("subject") or "", "body_en": body_en, "body_ml": body_ml,
-                                          "recipients": len(ids), "batch_id": batch})
+                                          "recipients": len(ids), "batch_id": batch, "send_at": send_at})
         db.audit(c, user["id"], "broadcast", "broadcast", bid, f"{len(ids)} members, {n} messages")
     return {"ok": True, "id": bid, "recipients": len(ids), "queued": n}
+
+
+@app.post("/api/broadcasts/{bid}/cancel")
+def cancel_broadcast(bid: int, user=Depends(require("broadcast.send"))):
+    b = db.one("SELECT * FROM broadcasts WHERE id=?", (bid,))
+    if not b:
+        raise HTTPException(404)
+    with db.tx() as c:
+        n = c.execute("DELETE FROM outbox WHERE batch_id=? AND status='pending'", (b["batch_id"],)).rowcount
+        db.audit(c, user["id"], "broadcast.cancel", "broadcast", bid, f"{n} removed")
+    return {"ok": True, "removed": n}
 
 
 @app.get("/api/broadcasts")
@@ -395,4 +570,5 @@ app.include_router(committees.router)
 app.include_router(library.router)
 app.include_router(finance.router)
 app.include_router(reports.router)
+app.include_router(facilities.router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

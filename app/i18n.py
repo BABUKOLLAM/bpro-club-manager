@@ -86,6 +86,30 @@ TEMPLATES = {
         "en": ("{subject}", "{body}"),
         "ml": ("{subject}", "{body}"),
     },
+    "payment_claimed": {
+        "en": ("Payment received for checking", "Dear {name}, we have noted your UPI payment of Rs {amount} (ref {utr}). The treasurer will confirm it and you will get the receipt. - {club_short}"),
+        "ml": ("പണമടച്ചതായി രേഖപ്പെടുത്തി", "പ്രിയ {name}, താങ്കളുടെ UPI പേയ്മെന്റ് Rs {amount} (ref {utr}) രേഖപ്പെടുത്തി. ട്രഷറർ സ്ഥിരീകരിച്ചാൽ രസീത് ലഭിക്കും. - {club_short}"),
+    },
+    "payment_rejected": {
+        "en": ("Payment not matched", "Dear {name}, we could not match your UPI payment claim of Rs {amount} (ref {utr}). {note} Please contact the treasurer. - {club_short}"),
+        "ml": ("പേയ്മെന്റ് സ്ഥിരീകരിക്കാനായില്ല", "പ്രിയ {name}, താങ്കളുടെ UPI പേയ്മെന്റ് Rs {amount} (ref {utr}) സ്ഥിരീകരിക്കാനായില്ല. {note} ട്രഷററെ ബന്ധപ്പെടുക. - {club_short}"),
+    },
+    "booking_confirmed": {
+        "en": ("Booking confirmed: {facility}", "Dear {name}, your booking of {facility} from {starts} to {ends} is confirmed. Amount: Rs {amount}. - {club_short}"),
+        "ml": ("ബുക്കിംഗ് സ്ഥിരീകരിച്ചു: {facility}", "പ്രിയ {name}, {facility} {starts} മുതൽ {ends} വരെ ബുക്കിംഗ് സ്ഥിരീകരിച്ചു. തുക: Rs {amount}. - {club_short}"),
+    },
+    "booking_cancelled": {
+        "en": ("Booking cancelled: {facility}", "Dear {name}, your booking of {facility} on {starts} is cancelled. {note} - {club_short}"),
+        "ml": ("ബുക്കിംഗ് റദ്ദാക്കി: {facility}", "പ്രിയ {name}, {starts}-ലെ {facility} ബുക്കിംഗ് റദ്ദാക്കി. {note} - {club_short}"),
+    },
+    "asset_due": {
+        "en": ("Return: {asset}", "Dear {name}, please return {asset} ({qty}) borrowed on {lent}. Due {due}. - {club_short}"),
+        "ml": ("തിരികെ നൽകുക: {asset}", "പ്രിയ {name}, {lent}-ന് വാങ്ങിയ {asset} ({qty}) {due}-നകം തിരികെ നൽകുക. - {club_short}"),
+    },
+    "blood_request": {
+        "en": ("Urgent: {blood} blood needed", "URGENT: {blood} blood is needed for {patient} at {hospital}. {detail} Please contact {contact}. - {club_short}"),
+        "ml": ("അടിയന്തരം: {blood} രക്തം ആവശ്യമുണ്ട്", "അടിയന്തരം: {hospital}-ൽ {patient}-ന് {blood} രക്തം ആവശ്യമുണ്ട്. {detail} ദയവായി {contact}-ൽ ബന്ധപ്പെടുക. - {club_short}"),
+    },
     "password_reset": {
         "en": ("Sign-in code", "{club_short}: your one-time sign-in code is {code}. Valid for 10 minutes."),
         "ml": ("പ്രവേശന കോഡ്", "{club_short}: താങ്കളുടെ ഒറ്റത്തവണ പ്രവേശന കോഡ് {code}. 10 മിനിറ്റ് സാധുത."),

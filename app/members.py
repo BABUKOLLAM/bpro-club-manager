@@ -4,9 +4,11 @@ import csv
 import datetime as dt
 import io
 import json
+import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import File, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from . import auth, comms, db, i18n
@@ -450,3 +452,198 @@ def member_card(mid: int, request: Request, lang: str = "ml"):
 <div class="k">{lbl[1]} · {lbl[3]}</div><div>{m['blood_group'] or '-'} · {m['joined_on'] or '-'}</div></div>
 <img class="qr" src="{qr}"><div class="foot">{s['club_phone']}</div></div>
 <script>setTimeout(()=>window.print(),400)</script></body></html>"""
+
+
+# ---------- batch cards ----------
+def _card_html(m, s, lang, types):
+    import segno
+    qr = segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=3, border=1)
+    name = i18n.pick(m, "name", lang)
+    club = s["club_name_ml" if lang == "ml" else "club_name_en"]
+    place = s["club_place_ml" if lang == "ml" else "club_place_en"]
+    mtype = types.get(m["membership_type"], {}).get(lang) or m["membership_type"]
+    photo = f"<img class='photo' src='/uploads/{m['photo']}'>" if m["photo"] else "<div class='photo'></div>"
+    lbl = {"en": ("Membership No", "Blood group", "Joined"), "ml": ("അംഗത്വ നമ്പർ", "രക്തഗ്രൂപ്പ്", "ചേർന്ന തീയതി")}[lang]
+    return f"""<div class="card"><div class="band">{club}<small>{place}</small></div>{photo}
+<div class="body"><div class="n">{name}</div><div>{mtype}</div><div class="k">{lbl[0]}</div><div><b>{m['member_no']}</b></div>
+<div class="k">{lbl[1]} · {lbl[2]}</div><div>{m['blood_group'] or '-'} · {m['joined_on'] or '-'}</div></div><img class="qr" src="{qr}"><div class="foot">{s['club_phone']}</div></div>"""
+
+
+CARD_CSS = """body{font-family:Inter,Manjari,sans-serif;background:#eee;margin:0;padding:8mm}.sheet{display:grid;grid-template-columns:repeat(2,85.6mm);gap:6mm;justify-content:center}
+.card{width:85.6mm;height:54mm;background:#fff;border-radius:3mm;box-shadow:0 2px 12px #0003;position:relative;overflow:hidden;font-size:9pt;color:#222;page-break-inside:avoid}
+.band{background:#0F4C45;color:#fff;padding:3mm 4mm;font-weight:700;font-size:9.5pt;line-height:1.2}.band small{display:block;font-weight:400;opacity:.85;font-size:7.5pt}
+.photo{position:absolute;left:4mm;top:15mm;width:20mm;height:24mm;object-fit:cover;background:#ddd;border-radius:1.5mm}.body{position:absolute;left:27mm;top:15mm;right:4mm}
+.n{font-weight:700;font-size:11pt}.k{color:#777;font-size:7pt;margin-top:1.5mm}.qr{position:absolute;right:4mm;bottom:3mm;width:16mm}.foot{position:absolute;left:4mm;bottom:3mm;font-size:7pt;color:#777}
+@media print{body{background:#fff;padding:0}.card{box-shadow:none;border:.2mm solid #999}}"""
+
+
+@router.get("/members/print/cards", response_class=HTMLResponse)
+def member_cards(ids: str = "", ward: str = "", mtype: str = "", lang: str = "ml", user=Depends(require("members.view"))):
+    """Many cards on A4 for batch printing: ?ids=1,2,3 or ?ward=7 or ?mtype=life (active members only)."""
+    where, args = ["status='active'"], []
+    if ids:
+        idl = [int(x) for x in ids.split(",") if x.strip().isdigit()]
+        where.append(f"id IN ({','.join('?' for _ in idl) or '0'})"); args += idl
+    if ward:
+        where.append("ward=?"); args.append(ward)
+    if mtype:
+        where.append("membership_type=?"); args.append(mtype)
+    rows = db.q(f"SELECT * FROM members WHERE {' AND '.join(where)} ORDER BY member_no", args)
+    s = db.settings_all(); types = {t["key"]: t for t in json.loads(s["membership_types"])}
+    lang = lang if lang in ("en", "ml") else "ml"
+    cards = "".join(_card_html(m, s, lang, types) for m in rows)
+    return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet"><style>{CARD_CSS}</style></head>
+<body><div class="sheet">{cards}</div><script>setTimeout(()=>window.print(),600)</script></body></html>"""
+
+
+# ---------- Excel import of an existing register ----------
+IMPORT_COLS = [("member_no", "Membership No"), ("name_en", "Name (English)"), ("name_ml", "Name (Malayalam)"), ("gender", "Gender (male/female/other)"), ("dob", "Date of birth (YYYY-MM-DD)"),
+               ("blood_group", "Blood group"), ("phone", "Phone"), ("whatsapp", "WhatsApp"), ("email", "E-mail"), ("house_en", "House (English)"), ("house_ml", "House (Malayalam)"),
+               ("address_en", "Address"), ("ward", "Ward"), ("pincode", "PIN"), ("occupation", "Occupation"), ("education", "Education"), ("membership_type", "Membership type (key)"),
+               ("joined_on", "Joined on (YYYY-MM-DD)"), ("status", "Status (active/inactive)"), ("notes", "Notes")]
+FAMILY_COLS = [("member_no", "Membership No"), ("member_phone", "Member phone (if no number)"), ("name_en", "Name (English)"), ("name_ml", "Name (Malayalam)"), ("relation", "Relation"),
+               ("gender", "Gender"), ("dob", "Date of birth (YYYY-MM-DD)"), ("phone", "Phone"), ("blood_group", "Blood group"), ("education", "Education"), ("occupation", "Occupation")]
+
+
+@router.get("/members/import/template.xlsx")
+def import_template(user=Depends(require("members.manage"))):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    wb = Workbook(); ws = wb.active; ws.title = "Members"
+    ws.append([h for _, h in IMPORT_COLS])
+    ws.append(["ASC/2019/0012", "Ramesh Kumar", "രമേശ് കുമാർ", "male", "1980-05-14", "O+", "9847012345", "", "ramesh@example.org", "Kizhakkethil", "കിഴക്കേതിൽ", "", "7", "686001", "Teacher", "B.Ed", "ordinary", "2019-06-01", "active", ""])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+    ws2 = wb.create_sheet("Family"); ws2.append([h for _, h in FAMILY_COLS])
+    ws2.append(["ASC/2019/0012", "", "Sita R", "സീത ആർ", "spouse", "female", "1984-01-02", "", "B+", "", ""])
+    for c in ws2[1]:
+        c.font = Font(bold=True)
+    ws3 = wb.create_sheet("Keys"); ws3.append(["Membership type keys", "Relations", "Blood groups"])
+    types = [t["key"] for t in db.setting_json("membership_types", [])]
+    for i in range(max(len(types), len(RELATIONS), len(BLOOD_GROUPS))):
+        ws3.append([types[i] if i < len(types) else "", RELATIONS[i] if i < len(RELATIONS) else "", BLOOD_GROUPS[i] if i < len(BLOOD_GROUPS) else ""])
+    for w in (ws, ws2):
+        for col in w.columns:
+            w.column_dimensions[col[0].column_letter].width = 18
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": "attachment; filename=members-import.xlsx"})
+
+
+def _cell(v):
+    if v is None:
+        return ""
+    if hasattr(v, "strftime"):
+        return v.strftime("%Y-%m-%d")
+    if isinstance(v, float) and v.is_integer():
+        return str(int(v))
+    return str(v).strip()
+
+
+def _read_sheet(ws, cols):
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return []
+    header = [_cell(h).lower() for h in rows[0]]
+    idx = {}
+    for key, label in cols:
+        for i, h in enumerate(header):
+            if h == label.lower() or h == key or h.startswith(label.lower().split(" (")[0]):
+                idx[key] = i; break
+    out = []
+    for n, r in enumerate(rows[1:], start=2):
+        if not any(_cell(v) for v in r):
+            continue
+        out.append({"_row": n, **{k: _cell(r[i]) if i < len(r) else "" for k, i in idx.items()}})
+    return out
+
+
+@router.post("/members/import")
+async def import_members(file: UploadFile = File(...), commit: int = 0, user=Depends(require("members.manage"))):
+    """Preview (commit=0) or import (commit=1) the Excel register. Rows with errors are reported and never written;
+    with commit=1 the valid rows are created as active members and family entries."""
+    from openpyxl import load_workbook
+    data = file.file.read(20 * 1024 * 1024)
+    try:
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except Exception:
+        raise HTTPException(400, "not an Excel (.xlsx) file")
+    types = {t["key"] for t in db.setting_json("membership_types", [])}
+    members_rows = _read_sheet(wb["Members"] if "Members" in wb.sheetnames else wb[wb.sheetnames[0]], IMPORT_COLS)
+    family_rows = _read_sheet(wb["Family"], FAMILY_COLS) if "Family" in wb.sheetnames else []
+    existing_no = {r["member_no"] for r in db.q("SELECT member_no FROM members WHERE member_no IS NOT NULL")}
+    existing_phone = {phone_key(r["phone"]) for r in db.q("SELECT phone FROM members WHERE status<>'rejected'") if phone_key(r["phone"])}
+    seen_no, seen_phone, report = set(), set(), []
+    for r in members_rows:
+        errs = []
+        if not r.get("name_en"):
+            errs.append("name missing")
+        pk = phone_key(r.get("phone"))
+        if r.get("phone") and len(pk) != 10:
+            errs.append("phone must have 10 digits")
+        if pk and (pk in existing_phone or pk in seen_phone):
+            errs.append("phone already registered")
+        no = r.get("member_no") or ""
+        if no and (no in existing_no or no in seen_no):
+            errs.append("membership number already used")
+        if r.get("membership_type") and r["membership_type"] not in types:
+            errs.append(f"unknown membership type '{r['membership_type']}'")
+        for k in ("dob", "joined_on"):
+            if r.get(k) and not re.match(r"^\d{4}-\d{2}-\d{2}$", r[k]):
+                errs.append(f"{k} must be YYYY-MM-DD")
+        if r.get("blood_group") and r["blood_group"].upper() not in BLOOD_GROUPS:
+            errs.append("blood group")
+        if r.get("status") and r["status"] not in ("active", "inactive", "suspended", "resigned", "deceased"):
+            errs.append("status")
+        seen_no.add(no); seen_phone.add(pk)
+        report.append({"row": r["_row"], "member_no": no, "name_en": r.get("name_en", ""), "phone": r.get("phone", ""), "errors": errs})
+    fam_report = []
+    keys_no = {r["member_no"] for r in members_rows if r.get("member_no")} | existing_no
+    keys_phone = {phone_key(r.get("phone")) for r in members_rows} | existing_phone
+    for f in family_rows:
+        errs = []
+        if not f.get("name_en"):
+            errs.append("name missing")
+        if not ((f.get("member_no") and f["member_no"] in keys_no) or (phone_key(f.get("member_phone")) in keys_phone)):
+            errs.append("member not found")
+        fam_report.append({"row": f["_row"], "member_no": f.get("member_no", ""), "name_en": f.get("name_en", ""), "errors": errs})
+    valid = [r for r, rep in zip(members_rows, report) if not rep["errors"]]
+    valid_f = [f for f, rep in zip(family_rows, fam_report) if not rep["errors"]]
+    out = {"members": report, "family": fam_report, "valid": len(valid), "invalid": len(report) - len(valid), "family_valid": len(valid_f), "created": 0, "family_created": 0}
+    if not commit:
+        return out
+    now = time.time()
+    with db.tx() as c:
+        by_no, by_phone = {}, {}
+        for r in valid:
+            row = clean(r, EDITABLE + ADMIN_ONLY)
+            row.pop("photo", None)
+            if row.get("blood_group"):
+                row["blood_group"] = row["blood_group"].upper()
+            row.update({"status": r.get("status") or "active", "applied_at": now, "approved_at": now, "approved_by": user["id"], "created": now, "updated": now, "lang": db.setting("default_lang")})
+            row.setdefault("membership_type", "ordinary")
+            if not row.get("membership_type"):
+                row["membership_type"] = "ordinary"
+            row["member_no"] = r.get("member_no") or issue_member_no(c)
+            mid = db.insert(c, "members", row)
+            by_no[row["member_no"]] = mid
+            if phone_key(row.get("phone")):
+                by_phone[phone_key(row["phone"])] = mid
+            _log(c, mid, user["id"], "imported", f"row {r['_row']}")
+            out["created"] += 1
+        for m in db.q("SELECT id, member_no, phone FROM members"):
+            by_no.setdefault(m["member_no"], m["id"])
+            if phone_key(m["phone"]):
+                by_phone.setdefault(phone_key(m["phone"]), m["id"])
+        for f in valid_f:
+            mid = by_no.get(f.get("member_no")) or by_phone.get(phone_key(f.get("member_phone")))
+            if not mid:
+                continue
+            fr = clean(f, FAMILY_FIELDS)
+            if fr.get("relation") and fr["relation"] not in RELATIONS:
+                fr["relation"] = "other"
+            fr.update({"member_id": mid, "created": now, "updated": now, "verified": 1})
+            db.insert(c, "family", fr)
+            out["family_created"] += 1
+        db.audit(c, user["id"], "members.import", detail=f"{out['created']} members, {out['family_created']} family")
+    return out

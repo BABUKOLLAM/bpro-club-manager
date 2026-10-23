@@ -143,10 +143,45 @@ CREATE TABLE IF NOT EXISTS broadcasts(id INTEGER PRIMARY KEY, created REAL NOT N
   subject TEXT NOT NULL DEFAULT '', body_en TEXT NOT NULL, body_ml TEXT NOT NULL DEFAULT '', recipients INTEGER NOT NULL DEFAULT 0, batch_id TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY, ts REAL NOT NULL, user_id INTEGER, action TEXT NOT NULL, ref_kind TEXT NOT NULL DEFAULT '', ref_id INTEGER, detail TEXT NOT NULL DEFAULT '');
 CREATE INDEX IF NOT EXISTS ix_audit_ts ON audit(ts);
+CREATE TABLE IF NOT EXISTS login_codes(ticket_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, code_hash TEXT NOT NULL, expires REAL NOT NULL, attempts INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS payment_claims(id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL, amount REAL NOT NULL, utr TEXT NOT NULL DEFAULT '', paid_on TEXT NOT NULL DEFAULT '',
+  head TEXT NOT NULL DEFAULT 'subscription', year INTEGER, note TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', receipt_id INTEGER, decided_by INTEGER, decided_at REAL,
+  decision_note TEXT NOT NULL DEFAULT '', created REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_claims_status ON payment_claims(status, created);
+CREATE TABLE IF NOT EXISTS documents(id INTEGER PRIMARY KEY, title_en TEXT NOT NULL, title_ml TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'other', path TEXT NOT NULL,
+  mime TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL DEFAULT 0, audience TEXT NOT NULL DEFAULT 'members', committee_id INTEGER, year TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER, created REAL NOT NULL, deleted INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS assets(id INTEGER PRIMARY KEY, code TEXT NOT NULL DEFAULT '', name_en TEXT NOT NULL, name_ml TEXT NOT NULL DEFAULT '', category TEXT NOT NULL DEFAULT 'other',
+  qty INTEGER NOT NULL DEFAULT 1, location TEXT NOT NULL DEFAULT '', condition TEXT NOT NULL DEFAULT 'good', purchased_on TEXT NOT NULL DEFAULT '', cost REAL NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1, created REAL NOT NULL, updated REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS asset_loans(id INTEGER PRIMARY KEY, asset_id INTEGER NOT NULL, member_id INTEGER, party TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '',
+  qty INTEGER NOT NULL DEFAULT 1, lent_on TEXT NOT NULL, due_on TEXT NOT NULL DEFAULT '', returned_on TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '', lent_by INTEGER, returned_by INTEGER, created REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_loans_asset ON asset_loans(asset_id, returned_on);
+CREATE TABLE IF NOT EXISTS facilities(id INTEGER PRIMARY KEY, name_en TEXT NOT NULL, name_ml TEXT NOT NULL DEFAULT '', description_en TEXT NOT NULL DEFAULT '', description_ml TEXT NOT NULL DEFAULT '',
+  rate_day REAL NOT NULL DEFAULT 0, rate_hour REAL NOT NULL DEFAULT 0, deposit REAL NOT NULL DEFAULT 0, capacity INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, created REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS bookings(id INTEGER PRIMARY KEY, facility_id INTEGER NOT NULL, member_id INTEGER, party TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '',
+  purpose TEXT NOT NULL DEFAULT '', starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, amount REAL NOT NULL DEFAULT 0, deposit REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'requested',
+  receipt_id INTEGER, note TEXT NOT NULL DEFAULT '', created_by INTEGER, created REAL NOT NULL, updated REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_bookings_time ON bookings(facility_id, starts_at, ends_at);
+CREATE TABLE IF NOT EXISTS fixtures(id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL, item_id INTEGER, round TEXT NOT NULL DEFAULT '', idx INTEGER NOT NULL DEFAULT 0,
+  side_a TEXT NOT NULL, side_b TEXT NOT NULL, scheduled_at TEXT NOT NULL DEFAULT '', venue TEXT NOT NULL DEFAULT '', score_a TEXT NOT NULL DEFAULT '', score_b TEXT NOT NULL DEFAULT '',
+  winner TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'scheduled', note TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS ix_fixtures_post ON fixtures(post_id, idx);
+CREATE TABLE IF NOT EXISTS post_judges(post_id INTEGER NOT NULL, user_id INTEGER NOT NULL, item_ids TEXT NOT NULL DEFAULT '', PRIMARY KEY(post_id, user_id));
+CREATE TABLE IF NOT EXISTS scores(id INTEGER PRIMARY KEY, post_id INTEGER NOT NULL, item_id INTEGER, registration_id INTEGER NOT NULL, judge_id INTEGER NOT NULL,
+  score REAL NOT NULL DEFAULT 0, remark TEXT NOT NULL DEFAULT '', created REAL NOT NULL, UNIQUE(registration_id, judge_id, item_id));
+CREATE TABLE IF NOT EXISTS push_subs(id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, member_id INTEGER, endpoint TEXT UNIQUE NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
+  created REAL NOT NULL, last_ok REAL, failures INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ix_push_member ON push_subs(member_id);
 """
 
 # (table, column, definition) added to databases created before the column existed
-MIGRATIONS = []
+MIGRATIONS = [
+    ("outbox", "not_before", "REAL"),
+    ("broadcasts", "send_at", "REAL"),
+    ("registrations", "team", "TEXT NOT NULL DEFAULT ''"),
+    ("members", "team", "TEXT NOT NULL DEFAULT ''"),
+]
 
 
 def connect():
@@ -263,6 +298,10 @@ DEFAULT_SETTINGS = {
     "default_lang": "ml",
     "reminder_days_before_event": "1",
     "footer_credit": "Team Bpro · www.drbabu.in",
+    "upi_id": "",
+    "upi_name": "",
+    "teams": json.dumps([]),
+    "asset_prefix": "AST",
 }
 
 
