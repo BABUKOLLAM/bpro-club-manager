@@ -42,11 +42,36 @@ def set_sender(fn):
     _override_sender = fn
 
 
+# Each club may carry its own gateway credentials under Settings; a blank setting falls back to the server's .env.
+ENV_SETTING = {"CLUB_WA_TOKEN": "wa_token", "CLUB_WA_PHONE_ID": "wa_phone_id", "CLUB_WA_TEMPLATE": "wa_template", "CLUB_WA_TEMPLATE_LANG": "wa_template_lang",
+               "CLUB_SMS_URL": "sms_url", "CLUB_SMS_BODY": "sms_body", "CLUB_SMS_HEADERS": "sms_headers", "CLUB_SMS_KEY": "sms_key", "CLUB_SMS_SENDER": "sms_sender", "CLUB_SMS_DLT_TEMPLATE": "sms_dlt",
+               "CLUB_SMTP_HOST": "smtp_host", "CLUB_SMTP_PORT": "smtp_port", "CLUB_SMTP_USER": "smtp_user", "CLUB_SMTP_PASS": "smtp_pass", "CLUB_SMTP_FROM": "smtp_from",
+               "CLUB_RZP_KEY_ID": "rzp_key_id", "CLUB_RZP_KEY_SECRET": "rzp_key_secret", "CLUB_RZP_WEBHOOK_SECRET": "rzp_webhook_secret"}
+SECRET_SETTINGS = ("wa_token", "sms_key", "sms_headers", "smtp_pass", "rzp_key_secret", "rzp_webhook_secret")
+
+
+def cfg(env, default=""):
+    """A gateway value: the club's own setting when filled in, else the environment."""
+    key = ENV_SETTING.get(env)
+    if key:
+        v = (db.setting(key, "") or "").strip()
+        if v:
+            return v
+    return os.environ.get(env) or default
+
+
+def own_channels():
+    """Which channels this club configured for itself (rather than inheriting the server's)."""
+    s = db.settings_all()
+    return {"whatsapp": bool(s["wa_token"] and s["wa_phone_id"]), "sms": bool(s["sms_url"]), "email": bool(s["smtp_host"] and s["smtp_from"]),
+            "gateway": bool(s["rzp_key_id"] and s["rzp_key_secret"])}
+
+
 def configured():
     return {
-        "whatsapp": bool(os.environ.get("CLUB_WA_TOKEN") and os.environ.get("CLUB_WA_PHONE_ID")),
-        "sms": bool(os.environ.get("CLUB_SMS_URL")),
-        "email": bool(os.environ.get("CLUB_SMTP_HOST") and os.environ.get("CLUB_SMTP_FROM")),
+        "whatsapp": bool(cfg("CLUB_WA_TOKEN") and cfg("CLUB_WA_PHONE_ID")),
+        "sms": bool(cfg("CLUB_SMS_URL")),
+        "email": bool(cfg("CLUB_SMTP_HOST") and cfg("CLUB_SMTP_FROM")),
         "app": True,
         "push": True,
     }
@@ -178,13 +203,13 @@ def _http(url, data=None, headers=None, method=None, timeout=20):
 
 
 def send_whatsapp(to, body):
-    token, phone_id = os.environ.get("CLUB_WA_TOKEN"), os.environ.get("CLUB_WA_PHONE_ID")
+    token, phone_id = cfg("CLUB_WA_TOKEN"), cfg("CLUB_WA_PHONE_ID")
     version = os.environ.get("CLUB_WA_API_VERSION", "v20.0")
     url = f"https://graph.facebook.com/{version}/{phone_id}/messages"
-    template = os.environ.get("CLUB_WA_TEMPLATE")
+    template = cfg("CLUB_WA_TEMPLATE")
     if template:
         payload = {"messaging_product": "whatsapp", "to": to, "type": "template",
-                   "template": {"name": template, "language": {"code": os.environ.get("CLUB_WA_TEMPLATE_LANG", "en")},
+                   "template": {"name": template, "language": {"code": cfg("CLUB_WA_TEMPLATE_LANG", "en")},
                                 "components": [{"type": "body", "parameters": [{"type": "text", "text": body[:1024]}]}]}}
     else:
         payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"preview_url": True, "body": body[:4096]}}
@@ -196,11 +221,11 @@ def send_whatsapp(to, body):
 
 
 def send_sms(to, body):
-    url_t = os.environ["CLUB_SMS_URL"]
-    subs = {"to": to, "text": body, "sender": os.environ.get("CLUB_SMS_SENDER", ""), "dlt": os.environ.get("CLUB_SMS_DLT_TEMPLATE", ""),
-            "key": os.environ.get("CLUB_SMS_KEY", "")}
-    headers = json.loads(os.environ.get("CLUB_SMS_HEADERS") or "{}")
-    body_t = os.environ.get("CLUB_SMS_BODY")
+    url_t = cfg("CLUB_SMS_URL")
+    subs = {"to": to, "text": body, "sender": cfg("CLUB_SMS_SENDER"), "dlt": cfg("CLUB_SMS_DLT_TEMPLATE"),
+            "key": cfg("CLUB_SMS_KEY")}
+    headers = json.loads(cfg("CLUB_SMS_HEADERS") or "{}")
+    body_t = cfg("CLUB_SMS_BODY")
     if body_t:
         data = body_t
         for k, v in subs.items():
@@ -219,17 +244,17 @@ def send_sms(to, body):
 
 
 def send_email(to, subject, body):
-    host, port = os.environ["CLUB_SMTP_HOST"], int(os.environ.get("CLUB_SMTP_PORT") or 587)
+    host, port = cfg("CLUB_SMTP_HOST"), int(cfg("CLUB_SMTP_PORT") or 587)
     msg = EmailMessage()
-    msg["From"], msg["To"], msg["Subject"] = os.environ["CLUB_SMTP_FROM"], to, subject
+    msg["From"], msg["To"], msg["Subject"] = cfg("CLUB_SMTP_FROM"), to, subject
     msg.set_content(body)
     ctx = ssl.create_default_context()
     s = smtplib.SMTP_SSL(host, port, timeout=20, context=ctx) if port == 465 else smtplib.SMTP(host, port, timeout=20)
     try:
         if port != 465:
             s.starttls(context=ctx)
-        if os.environ.get("CLUB_SMTP_USER"):
-            s.login(os.environ["CLUB_SMTP_USER"], os.environ.get("CLUB_SMTP_PASS", ""))
+        if cfg("CLUB_SMTP_USER"):
+            s.login(cfg("CLUB_SMTP_USER"), cfg("CLUB_SMTP_PASS"))
         s.send_message(msg)
     finally:
         s.quit()

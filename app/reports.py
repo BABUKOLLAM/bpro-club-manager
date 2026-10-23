@@ -3,7 +3,7 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends
 
-from . import db
+from . import brand, db
 from .auth import can, current_user, require
 
 router = APIRouter(prefix="/api/reports")
@@ -145,13 +145,14 @@ def annual_print(year: int = 0, lang: str = "ml", user=Depends(require("reports.
     bt = "".join(f"<tr><td>{e((types.get(x['k']) or {}).get(lang) or x['k'])}</td><td class=n>{x['n']}</td></tr>" for x in r["members"]["by_type"])
     pop = "".join(f"<li>{e(i18n.pick(x, 'title', lang))} ({x['n']})</li>" for x in r["library"]["popular"])
     a = r["accounts"]
-    return HTMLResponse(f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{L[0]} {r['year']}</title>
+    c = brand.colors(s)
+    return HTMLResponse(f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{L[0]} {r['year']}</title>{brand.html_head(s)}
 <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
-<style>body{{font-family:Inter,Manjari,sans-serif;max-width:820px;margin:0 auto;padding:24px;color:#1d2a28;line-height:1.5}}h1{{margin:0;color:#0F4C45}}h2{{border-bottom:2px solid #0F4C45;padding-bottom:4px;margin-top:22px;font-size:1.1rem}}
+<style>body{{font-family:Inter,Manjari,sans-serif;max-width:820px;margin:0 auto;padding:24px;color:#1d2a28;line-height:1.5}}h1{{margin:0;color:{c['primary']}}}h2{{border-bottom:2px solid {c['primary']};padding-bottom:4px;margin-top:22px;font-size:1.1rem}}
 table{{width:100%;border-collapse:collapse;font-size:.92rem;margin:6px 0}}td,th{{border:1px solid #ccc;padding:5px 8px;text-align:left}}td.n{{text-align:right;font-family:Inter}}.m{{color:#777;font-size:.85rem}}
 .kv{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:8px 0}}.kv div{{border:1px solid #ddd;border-radius:8px;padding:8px}}.kv b{{display:block;font-size:1.3rem;font-family:Inter}}
 .sign{{margin-top:50px;display:flex;justify-content:space-between}}@media print{{body{{padding:0}}}}</style></head><body>
-<div class=m>{e(s['club_name_ml' if lang == 'ml' else 'club_name_en'])}{(' · ' + e(s['club_reg_no'])) if s['club_reg_no'] else ''}</div><h1>{L[0]} {r['year']}</h1>
+{brand.logo_img(s, height=56)}<div class=m>{e(s['club_name_ml' if lang == 'ml' else 'club_name_en'])}{(' · ' + e(s['club_reg_no'])) if s['club_reg_no'] else ''}</div><h1>{L[0]} {r['year']}</h1>
 {('<h2>' + L[1] + '</h2><table>' + ob + '</table>') if ob else ''}
 <h2>{L[2]}</h2><div class=kv><div>{L[3]}<b>{r['members']['active']}</b></div><div>{L[4]}<b>{r['members']['joined']}</b></div><div>{L[5]}<b>{r['members']['family']}</b></div></div><table>{bt}</table>
 <h2>{L[6]}</h2>{('<table><tr><th></th><th></th><th></th><th>' + L[7] + '</th></tr>' + ev + '</table>') if ev else '<p class=m>-</p>'}<p class=m>{L[26]}: {r["news_count"]}</p>

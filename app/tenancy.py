@@ -134,6 +134,8 @@ def create(slug, name_en, name_ml="", domains=(), admin_login="", admin_password
             with db.tx() as c:
                 db.set_setting(c, "club_name_en", name_en)
                 db.set_setting(c, "club_name_ml", name_ml or name_en)
+                if reg.get("powered_by"):
+                    db.set_setting(c, "footer_credit", reg["powered_by"])
                 if short:
                     db.set_setting(c, "club_short", short)
                     db.set_setting(c, "member_no_prefix", short)

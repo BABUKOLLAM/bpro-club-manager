@@ -429,7 +429,7 @@ def member_card(mid: int, request: Request, lang: str = "ml"):
     lang = lang if lang in ("en", "ml") else "ml"
     s = db.settings_all(); types = {t["key"]: t for t in json.loads(s["membership_types"])}
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{m['member_no']}</title>
-<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>{CARD_CSS}body{{display:grid;place-items:center;min-height:100vh}}</style></head>
+<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet"><style>{card_css(s)}body{{display:grid;place-items:center;min-height:100vh}}</style></head>
 <body>{_card_html(m, s, lang, types)}<script>setTimeout(()=>window.print(),400)</script></body></html>"""
 
 
@@ -445,7 +445,8 @@ def card_data(m, lang="ml"):
             "blood_group": m["blood_group"], "joined_on": m["joined_on"], "phone": m["phone"] if m["show_phone"] else "", "ward": m["ward"], "photo": m["photo"], "gender": m["gender"], "dob": m["dob"],
             "club_en": s["club_name_en"], "club_ml": s["club_name_ml"], "club_short": s["club_short"], "place_en": s["club_place_en"], "place_ml": s["club_place_ml"], "club_phone": s["club_phone"],
             "reg_no": s["club_reg_no"], "valid": valid, "valid_ml": "ആജീവനാന്തം" if m["membership_type"] == "life" else f"ഡിസം {year}",
-            "qr": segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=4, border=0)}
+            "qr": segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=4, border=0),
+            "brand": {**{k: v for k, v in __import__("app.brand", fromlist=["colors"]).colors(s).items() if k in ("primary", "primary_2", "primary_3", "primary_ink", "accent", "accent_soft")}, "logo": s["brand_logo"]}}
 
 
 @router.get("/members/{mid}/card.json")
@@ -470,20 +471,28 @@ def _card_html(m, s, lang, types):
     lbl = {"en": ("Member No", "Blood", "Joined", "Valid", "Phone"), "ml": ("അംഗത്വ നമ്പർ", "രക്തം", "ചേർന്നത്", "സാധുത", "ഫോൺ")}[lang]
     valid = d["valid_ml"] if lang == "ml" else d["valid"]
     photo = f"<img class='photo' src='/uploads/{e(d['photo'])}'>" if d["photo"] else f"<div class='photo ini'>{e((d['name_en'] or '?')[:1].upper())}</div>"
-    return f"""<div class="ecard"><div class="band"><div class="club">{e(club)}</div><div class="place">{e(place)}</div><div class="short">{e(d['club_short'])}</div><div class="stripe"></div></div>
+    badge = f"<img class='blogo' src='/uploads/{e(d['brand']['logo'])}'>" if d["brand"].get("logo") else f"<div class='short'>{e(d['club_short'])}</div>"
+    return f"""<div class="ecard"><div class="band"><div class="club">{e(club)}</div><div class="place">{e(place)}</div>{badge}<div class="stripe"></div></div>
 {photo}<div class="body"><div class="n">{e(name)}</div><div class="n2">{e(other)}</div><span class="type">{e(mtype)}</span>
 <div class="rows"><div><small>{lbl[0]}</small><b class="no">{e(d['member_no'] or '')}</b></div><div><small>{lbl[1]}</small><b>{e(d['blood_group'] or '-')}</b></div><div><small>{lbl[2]}</small><b>{e(d['joined_on'] or '-')}</b></div><div><small>{lbl[3]}</small><b>{e(valid)}</b></div></div></div>
 <img class="qr" src="{d['qr']}"><div class="foot">{e(d['club_phone'])}{(' · ' + e(d['reg_no'])) if d['reg_no'] else ''}</div></div>"""
 
 
+def card_css(s=None):
+    from . import brand
+    c = brand.colors(s)
+    return (f".ecard{{--cb:{c['primary']};--cb2:{c['primary_2']};--cb3:{c['primary_3']};--ca:{c['accent']};--cas:{c['accent_soft']};--cbi:{c['primary_ink']}}}"
+            ".ecard .blogo{position:absolute;right:4mm;top:2.5mm;height:11mm;max-width:28mm;object-fit:contain;background:rgba(255,255,255,.92);border-radius:1.5mm;padding:.8mm}" + CARD_CSS)
+
+
 CARD_CSS = """body{font-family:Inter,Manjari,sans-serif;background:#eee;margin:0;padding:8mm}.sheet{display:grid;grid-template-columns:repeat(2,85.6mm);gap:6mm;justify-content:center}
 .ecard{width:85.6mm;height:54mm;background:#fff;border-radius:3mm;box-shadow:0 2px 12px #0003;position:relative;overflow:hidden;font-size:8.5pt;color:#1D2A28;page-break-inside:avoid;font-family:Inter,Manjari,sans-serif}
-.band{position:absolute;left:0;top:0;right:0;height:17mm;background:linear-gradient(120deg,#0F4C45,#196B61 70%,#2A8C7F);color:#fff;padding:3mm 4mm}.band .club{font-weight:700;font-size:9.5pt;line-height:1.15;max-width:62mm}
+.band{position:absolute;left:0;top:0;right:0;height:17mm;background:linear-gradient(120deg,var(--cb),var(--cb2) 70%,var(--cb3));color:var(--cbi);padding:3mm 4mm}.band .club{font-weight:700;font-size:9.5pt;line-height:1.15;max-width:62mm}
 .band .place{font-size:7pt;opacity:.85;margin-top:.5mm}.band .short{position:absolute;right:4mm;top:3mm;background:rgba(255,255,255,.18);border-radius:2mm;padding:.5mm 2mm;font-weight:700;font-size:8pt;font-family:Inter}
-.band .stripe{position:absolute;left:0;right:0;bottom:0;height:1.2mm;background:#C9542A}
-.photo{position:absolute;left:4mm;top:13mm;width:22mm;height:26mm;object-fit:cover;border-radius:2mm;border:1mm solid #fff;box-shadow:0 1mm 3mm #0003;background:#EEF2EF}.photo.ini{display:grid;place-items:center;font-size:22pt;font-weight:700;color:#0F4C45;font-family:Inter}
-.body{position:absolute;left:29mm;top:19mm;right:4mm}.n{font-weight:700;font-size:11pt;line-height:1.15}.n2{font-size:7.5pt;color:#5B6B68}.type{display:inline-block;margin-top:1mm;background:#FBE9E1;color:#C9542A;border-radius:99mm;padding:0 2mm;font-size:7pt;font-weight:700}
-.rows{display:grid;grid-template-columns:1fr 1fr;gap:1mm 3mm;margin-top:2mm}.rows small{display:block;color:#8a948f;font-size:6pt;text-transform:uppercase;letter-spacing:.04em}.rows b{font-size:8pt}.rows .no{font-family:Inter;font-size:9pt;color:#0F4C45}
+.band .stripe{position:absolute;left:0;right:0;bottom:0;height:1.2mm;background:var(--ca)}
+.photo{position:absolute;left:4mm;top:13mm;width:22mm;height:26mm;object-fit:cover;border-radius:2mm;border:1mm solid #fff;box-shadow:0 1mm 3mm #0003;background:#EEF2EF}.photo.ini{display:grid;place-items:center;font-size:22pt;font-weight:700;color:var(--cb);font-family:Inter}
+.body{position:absolute;left:29mm;top:19mm;right:4mm}.n{font-weight:700;font-size:11pt;line-height:1.15}.n2{font-size:7.5pt;color:#5B6B68}.type{display:inline-block;margin-top:1mm;background:var(--cas);color:var(--ca);border-radius:99mm;padding:0 2mm;font-size:7pt;font-weight:700}
+.rows{display:grid;grid-template-columns:1fr 1fr;gap:1mm 3mm;margin-top:2mm}.rows small{display:block;color:#8a948f;font-size:6pt;text-transform:uppercase;letter-spacing:.04em}.rows b{font-size:8pt}.rows .no{font-family:Inter;font-size:9pt;color:var(--cb)}
 .qr{position:absolute;right:4mm;bottom:4mm;width:15mm;height:15mm}.foot{position:absolute;left:4mm;bottom:2.5mm;font-size:6pt;color:#8a948f}
 @media print{body{background:#fff;padding:0}.ecard{box-shadow:none;border:.2mm solid #999}}"""
 
@@ -504,7 +513,7 @@ def member_cards(ids: str = "", ward: str = "", mtype: str = "", lang: str = "ml
     lang = lang if lang in ("en", "ml") else "ml"
     cards = "".join(_card_html(m, s, lang, types) for m in rows)
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>cards</title>
-<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet"><style>{CARD_CSS}</style></head>
+<link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet"><style>{card_css(s)}</style></head>
 <body><div class="sheet">{cards}</div><script>setTimeout(()=>window.print(),600)</script></body></html>"""
 
 

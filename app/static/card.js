@@ -10,7 +10,9 @@ function cardText(d, lang) {
 function ecardHtml(d, lang) {
   const x = cardText(d, lang); const L = x.labels;
   const photo = d.photo ? `<img class="photo" src="/uploads/${esc(d.photo)}" alt="">` : `<div class="photo ini">${esc((d.name_en || '?')[0].toUpperCase())}</div>`;
-  return `<div class="ecard-wrap"><div class="ecard ${lang === 'ml' ? 'ml' : ''}"><div class="band"><div class="club">${esc(x.club)}</div><div class="place">${esc(x.place)}</div><div class="short">${esc(d.club_short)}</div><div class="stripe"></div></div>
+  const b = d.brand || {}; const vars = b.primary ? `--cb:${b.primary};--cb2:${b.primary_2};--cb3:${b.primary_3};--ca:${b.accent};--cas:${b.accent_soft};--cbi:${b.primary_ink || '#fff'}` : '';
+  const badge = b.logo ? `<img class="blogo" src="/uploads/${esc(b.logo)}" alt="">` : `<div class="short">${esc(d.club_short)}</div>`;
+  return `<div class="ecard-wrap"><div class="ecard ${lang === 'ml' ? 'ml' : ''}" style="${vars}"><div class="band"><div class="club">${esc(x.club)}</div><div class="place">${esc(x.place)}</div>${badge}<div class="stripe"></div></div>
   ${photo}<div class="body"><div class="n">${esc(x.name)}</div><div class="n2">${esc(x.other)}</div><span class="type">${esc(x.type)}</span>
   <div class="rows"><div><small>${L[0]}</small><b class="no">${esc(d.member_no)}</b></div><div><small>${L[1]}</small><b>${esc(d.blood_group || '-')}</b></div><div><small>${L[2]}</small><b>${esc(fmtDate(d.joined_on) || '-')}</b></div><div><small>${L[3]}</small><b>${esc(x.valid)}</b></div></div></div>
   <img class="qr" src="${d.qr}" alt="QR"><div class="foot">${esc(d.club_phone)}${d.reg_no ? ' · ' + esc(d.reg_no) : ''}</div></div></div>`;
@@ -25,24 +27,28 @@ async function ecardPng(d, lang) {
   const x = cardText(d, lang); const mlFont = 'Manjari, "Noto Sans Malayalam", sans-serif', latin = 'Inter, sans-serif'; const F = lang === 'ml' ? mlFont : latin;
   try { await Promise.all([document.fonts.load(`700 ${12 * S}px Manjari`), document.fonts.load(`700 ${12 * S}px Inter`), document.fonts.load(`400 ${12 * S}px Inter`)]); } catch (e) {}
   rr(ctx, 0, 0, W, H, 14 * S); ctx.clip(); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
-  const g = ctx.createLinearGradient(0, 0, W, 85 * S); g.addColorStop(0, '#0F4C45'); g.addColorStop(.7, '#196B61'); g.addColorStop(1, '#2A8C7F'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, 85 * S);
-  ctx.fillStyle = '#C9542A'; ctx.fillRect(0, 85 * S - 6 * S, W, 6 * S);
-  ctx.fillStyle = '#fff'; ctx.font = `700 ${12.5 * S}px ${F}`; ctx.fillText(fitText(ctx, x.club, 300 * S), 20 * S, 32 * S);
-  ctx.font = `400 ${9 * S}px ${F}`; ctx.globalAlpha = .85; ctx.fillText(fitText(ctx, x.place, 300 * S), 20 * S, 50 * S); ctx.globalAlpha = 1;
-  ctx.font = `700 ${10 * S}px ${latin}`; const sw = ctx.measureText(d.club_short).width + 16 * S; ctx.fillStyle = 'rgba(255,255,255,.18)'; rr(ctx, W - 20 * S - sw, 16 * S, sw, 22 * S, 5 * S); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText(d.club_short, W - 20 * S - sw + 8 * S, 32 * S);
+  const B = Object.assign({ primary: '#0F4C45', primary_2: '#196B61', primary_3: '#2A8C7F', primary_ink: '#fff', accent: '#C9542A', accent_soft: '#FBE9E1' }, d.brand || {});
+  const g = ctx.createLinearGradient(0, 0, W, 85 * S); g.addColorStop(0, B.primary); g.addColorStop(.7, B.primary_2); g.addColorStop(1, B.primary_3); ctx.fillStyle = g; ctx.fillRect(0, 0, W, 85 * S);
+  ctx.fillStyle = B.accent; ctx.fillRect(0, 85 * S - 6 * S, W, 6 * S);
+  const clubMax = B.logo ? 270 * S : 300 * S;
+  ctx.fillStyle = B.primary_ink; ctx.font = `700 ${12.5 * S}px ${F}`; ctx.fillText(fitText(ctx, x.club, clubMax), 20 * S, 32 * S);
+  ctx.font = `400 ${9 * S}px ${F}`; ctx.globalAlpha = .85; ctx.fillText(fitText(ctx, x.place, clubMax), 20 * S, 50 * S); ctx.globalAlpha = 1;
+  let drewLogo = false;
+  if (B.logo) { try { const lm = await loadImg('/uploads/' + B.logo); const lh = 46 * S, lw = Math.min(120 * S, lm.width * lh / lm.height); ctx.fillStyle = 'rgba(255,255,255,.92)'; rr(ctx, W - 16 * S - lw - 8 * S, 12 * S, lw + 8 * S, lh + 8 * S, 8 * S); ctx.fill(); ctx.drawImage(lm, W - 16 * S - lw - 4 * S, 16 * S, lw, lh); drewLogo = true; } catch (e) {} }
+  if (!drewLogo) { ctx.font = `700 ${10 * S}px ${latin}`; const sw = ctx.measureText(d.club_short).width + 16 * S; ctx.fillStyle = 'rgba(255,255,255,.18)'; rr(ctx, W - 20 * S - sw, 16 * S, sw, 22 * S, 5 * S); ctx.fill(); ctx.fillStyle = B.primary_ink; ctx.fillText(d.club_short, W - 20 * S - sw + 8 * S, 32 * S); }
   // photo
   const px = 20 * S, py = 65 * S, pw = 110 * S, ph = 130 * S;
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 12 * S; ctx.shadowOffsetY = 4 * S; ctx.fillStyle = '#fff'; rr(ctx, px - 4 * S, py - 4 * S, pw + 8 * S, ph + 8 * S, 12 * S); ctx.fill(); ctx.restore();
   ctx.save(); rr(ctx, px, py, pw, ph, 9 * S); ctx.clip(); ctx.fillStyle = '#EEF2EF'; ctx.fillRect(px, py, pw, ph);
   if (d.photo) { try { const im = await loadImg('/uploads/' + d.photo); const r = Math.max(pw / im.width, ph / im.height); const iw = im.width * r, ih = im.height * r; ctx.drawImage(im, px + (pw - iw) / 2, py + (ph - ih) / 2, iw, ih); } catch (e) {} }
-  else { ctx.fillStyle = '#0F4C45'; ctx.font = `700 ${56 * S}px ${latin}`; ctx.textAlign = 'center'; ctx.fillText((d.name_en || '?')[0].toUpperCase(), px + pw / 2, py + ph / 2 + 20 * S); ctx.textAlign = 'left'; }
+  else { ctx.fillStyle = B.primary; ctx.font = `700 ${56 * S}px ${latin}`; ctx.textAlign = 'center'; ctx.fillText((d.name_en || '?')[0].toUpperCase(), px + pw / 2, py + ph / 2 + 20 * S); ctx.textAlign = 'left'; }
   ctx.restore();
   // body
   const bx = 145 * S; ctx.fillStyle = '#1D2A28'; ctx.font = `700 ${15 * S}px ${F}`; ctx.fillText(fitText(ctx, x.name, 250 * S), bx, 110 * S);
   ctx.fillStyle = '#5B6B68'; ctx.font = `400 ${9.5 * S}px ${lang === 'ml' ? latin : mlFont}`; ctx.fillText(fitText(ctx, x.other, 250 * S), bx, 126 * S);
-  ctx.font = `700 ${8.5 * S}px ${F}`; const tw = ctx.measureText(x.type).width + 14 * S; ctx.fillStyle = '#FBE9E1'; rr(ctx, bx, 133 * S, tw, 16 * S, 8 * S); ctx.fill(); ctx.fillStyle = '#C9542A'; ctx.fillText(x.type, bx + 7 * S, 145 * S);
+  ctx.font = `700 ${8.5 * S}px ${F}`; const tw = ctx.measureText(x.type).width + 14 * S; ctx.fillStyle = B.accent_soft; rr(ctx, bx, 133 * S, tw, 16 * S, 8 * S); ctx.fill(); ctx.fillStyle = B.accent; ctx.fillText(x.type, bx + 7 * S, 145 * S);
   const rows = [[x.labels[0], d.member_no, true], [x.labels[1], d.blood_group || '-'], [x.labels[2], fmtDate(d.joined_on) || '-'], [x.labels[3], x.valid]];
-  rows.forEach(([k, v, big], i) => { const cx = bx + (i % 2) * 125 * S, cy = 170 * S + Math.floor(i / 2) * 34 * S; ctx.fillStyle = '#8a948f'; ctx.font = `600 ${6.5 * S}px ${F}`; ctx.fillText(String(k).toUpperCase(), cx, cy); ctx.fillStyle = big ? '#0F4C45' : '#1D2A28'; ctx.font = `700 ${(big ? 11.5 : 10) * S}px ${big ? latin : F}`; ctx.fillText(fitText(ctx, String(v), 118 * S), cx, cy + 14 * S); });
+  rows.forEach(([k, v, big], i) => { const cx = bx + (i % 2) * 125 * S, cy = 170 * S + Math.floor(i / 2) * 34 * S; ctx.fillStyle = '#8a948f'; ctx.font = `600 ${6.5 * S}px ${F}`; ctx.fillText(String(k).toUpperCase(), cx, cy); ctx.fillStyle = big ? B.primary : '#1D2A28'; ctx.font = `700 ${(big ? 11.5 : 10) * S}px ${big ? latin : F}`; ctx.fillText(fitText(ctx, String(v), 118 * S), cx, cy + 14 * S); });
   try { const qr = await loadImg(d.qr); ctx.drawImage(qr, W - 20 * S - 72 * S, H - 20 * S - 72 * S, 72 * S, 72 * S); } catch (e) {}
   ctx.fillStyle = '#8a948f'; ctx.font = `400 ${6.5 * S}px ${latin}`; ctx.fillText([d.club_phone, d.reg_no].filter(Boolean).join(' · '), 20 * S, H - 12 * S);
   return new Promise(res => c.toBlob(res, 'image/png'));
