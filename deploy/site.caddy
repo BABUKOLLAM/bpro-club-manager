@@ -1,0 +1,5 @@
+# Example Caddy site block: HTTPS, compression, and a long cache for the static files.
+club.example.org {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8810
+}
