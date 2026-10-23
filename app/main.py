@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import auth, brand, comms, db, i18n, push, security, tenancy
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, saas, help as helpdoc
+from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, saas, legal, help as helpdoc
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -44,7 +44,7 @@ class TenantMiddleware:
         headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
         path = scope.get("path", "")
         slug = tenancy.resolve(headers.get("host", ""))
-        platform_path = path == "/healthz" or path.startswith(("/_platform", "/api/_platform", "/static/", "/signup", "/pricing", "/api/saas/signup", "/api/saas/webhook", "/brand/"))
+        platform_path = path == "/healthz" or path.startswith(("/_platform", "/api/_platform", "/static/", "/signup", "/pricing", "/terms", "/privacy", "/api/saas/signup", "/api/saas/webhook", "/brand/"))
         if slug is None and not platform_path:
             resp = JSONResponse({"error": "no club at this address"}, status_code=404) if path.startswith("/api/") else HTMLResponse("<h1>No club at this address</h1>", status_code=404)
             return await resp(scope, receive, send)
@@ -798,5 +798,6 @@ app.include_router(polls.router)
 app.include_router(site.router)
 app.include_router(saas.router, prefix="/api/saas")
 app.include_router(saas.pages)
+app.include_router(legal.router)
 app.include_router(helpdoc.router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

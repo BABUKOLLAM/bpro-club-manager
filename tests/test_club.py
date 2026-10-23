@@ -1140,3 +1140,18 @@ def test_saas_signup_pricing_billing_and_suspension(admin):
         assert anon.post("/api/_platform/tenants/pala-arts-club/plan", json={"action": "extend_trial", "days": 10}, headers=MK).status_code == 200
     finally:
         os.environ.pop("CLUB_MASTER_KEY", None)
+
+
+def test_terms_and_privacy_pages(admin):
+    anon = TestClient(app)
+    for host in ("http://testserver", "http://nobody.test"):
+        c = TestClient(app, base_url=host)
+        t = c.get("/terms?lang=en").text
+        assert "Terms of service" in t and "ClubPro" in t and "Team Bpro" in t and "read-only" in t and "Kottayam" in t
+        assert "സേവന വ്യവസ്ഥകൾ" in c.get("/terms?lang=ml").text and "വായിക്കാൻ മാത്ര" in c.get("/terms?lang=ml").text
+        p = c.get("/privacy?lang=en").text
+        assert "Privacy policy" in p and "Digital Personal Data Protection Act" in p and "blood group" in p.lower() and "Razorpay" in p
+        assert "സ്വകാര്യതാ നയം" in c.get("/privacy?lang=ml").text and "രക്തഗ്രൂപ്പ്" in c.get("/privacy?lang=ml").text
+    # linked from signup, pricing and the app's public shell
+    assert '/terms?lang=en' in anon.get("/signup?lang=en").text and '/privacy?lang=ml' in anon.get("/pricing?lang=ml").text
+    assert anon.get("/terms?lang=xx").status_code == 200
