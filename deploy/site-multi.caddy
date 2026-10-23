@@ -1,0 +1,15 @@
+# Multi-club: one Caddy site serves every club's domain with on-demand TLS. Point each club's DNS at this server,
+# add the domain on /_platform, and the certificate is issued on the first visit. The ask endpoint lets Caddy
+# check that a domain belongs to a registered club before requesting a certificate (abuse protection).
+{
+    on_demand_tls {
+        ask http://127.0.0.1:8810/api/_platform/ask
+    }
+}
+https:// {
+    tls {
+        on_demand
+    }
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:8810
+}

@@ -28,7 +28,7 @@ import urllib.request
 import uuid
 from email.message import EmailMessage
 
-from . import db, i18n
+from . import db, i18n, tenancy
 
 log = logging.getLogger("club.comms")
 CHANNELS = ("whatsapp", "sms", "email", "app", "push")
@@ -76,7 +76,7 @@ def wa_link(phone, text=""):
 def club_ctx():
     s = db.settings_all()
     return {"club": s["club_name_en"], "club_ml": s["club_name_ml"], "club_short": s["club_short"],
-            "link": os.environ.get("CLUB_PUBLIC_URL", "").rstrip("/")}
+            "link": tenancy.base_url()}
 
 
 def _ctx_for(lang, ctx):
@@ -309,7 +309,11 @@ def start_worker(interval=5.0):
     def run():
         while True:
             try:
-                if process_outbox() == 0:
+                n = 0
+                for slug in tenancy.all_slugs():
+                    with tenancy.use(slug):
+                        n += process_outbox()
+                if n == 0:
                     time.sleep(interval)
             except Exception:  # noqa: BLE001
                 log.exception("outbox worker")

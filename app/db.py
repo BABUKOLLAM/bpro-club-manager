@@ -10,10 +10,35 @@ import threading
 import time
 from contextlib import contextmanager
 
+from . import tenancy
+
 DATA_DIR = os.environ.get("CLUB_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"))
-DB_PATH = os.path.join(DATA_DIR, "club.db")
-UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
-_lock = threading.RLock()
+_locks = {}
+_locks_guard = threading.Lock()
+
+
+def slug():
+    return tenancy.current.get()
+
+
+def data_dir():
+    return tenancy.tenant_dir(slug())
+
+
+def db_path():
+    return os.path.join(data_dir(), "club.db")
+
+
+def upload_dir():
+    return os.path.join(data_dir(), "uploads")
+
+
+def _lock_for(s=None):
+    s = s or slug()
+    with _locks_guard:
+        if s not in _locks:
+            _locks[s] = threading.RLock()
+        return _locks[s]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY, login TEXT UNIQUE NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'member',
@@ -199,9 +224,9 @@ MIGRATIONS = [
 
 
 def connect():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
-    c = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False, isolation_level=None)
+    os.makedirs(data_dir(), exist_ok=True)
+    os.makedirs(upload_dir(), exist_ok=True)
+    c = sqlite3.connect(db_path(), timeout=30, check_same_thread=False, isolation_level=None)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA foreign_keys=OFF")
@@ -209,26 +234,45 @@ def connect():
     return c
 
 
-_local = threading.local()      # one connection per thread: sqlite3 connections must not be used concurrently
+_local = threading.local()      # one connection per thread and per club: sqlite3 connections must not be shared
 _all = []
+_initialized = set()
 
 
 def conn():
-    c = getattr(_local, "conn", None)
+    conns = getattr(_local, "conns", None)
+    if conns is None:
+        conns = _local.conns = {}
+    s = slug()
+    c = conns.get(s)
     if c is None:
-        c = _local.conn = connect()
+        if s not in _initialized:
+            init()
+        c = conns[s] = connect()
         _all.append(c)
     return c
 
 
 def init():
-    c = conn()
-    with _lock:
-        c.executescript(SCHEMA)
-        for table, col, ddl in MIGRATIONS:
-            cols = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
-            if col not in cols:
-                c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+    """Create or upgrade the current club's schema (idempotent, once per process per club)."""
+    s = slug()
+    with _lock_for(s):
+        c = connect()
+        try:
+            c.executescript(SCHEMA)
+            for table, col, ddl in MIGRATIONS:
+                cols = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
+                if col not in cols:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+        finally:
+            c.close()
+        _initialized.add(s)
+
+
+def init_all():
+    for s in tenancy.all_slugs():
+        with tenancy.use(s):
+            init()
 
 
 def reset_for_tests():
@@ -239,7 +283,8 @@ def reset_for_tests():
         except Exception:  # noqa: BLE001
             pass
     _all.clear()
-    _local.conn = None
+    _initialized.clear()
+    _local.conns = {}
 
 
 @contextmanager
@@ -247,7 +292,7 @@ def tx():
     """Serialised write transaction. SQLite has one writer; the lock keeps the threads polite. Readers on other
     threads keep going (WAL) and see the transaction once it commits."""
     c = conn()
-    with _lock:
+    with _lock_for():
         c.execute("BEGIN IMMEDIATE")
         try:
             yield c
