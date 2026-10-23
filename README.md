@@ -33,6 +33,8 @@ An exclusive product developed by Dr. Babu B., Team Bpro · [www.drbabu.in](http
 | **Backups** | A consistent SQLite copy plus the uploads folder every night, with rotation, and pushed to a **Google Drive** folder through a service account when configured. "Back up now" and the last result under Settings. |
 | **Polls & elections** | Polls and elections for all members or one committee: candidates picked from the members, one ballot per member, secret ballot by default, seats per voter, results after close or live, voters told on open and on results. |
 | **Public website** | `/site`: the club's page with about text, office bearers, upcoming public events, news, photos, documents, contact, map and social links, in English or Malayalam, with Open Graph tags for WhatsApp previews. |
+| **Application form & e-card** | A step-by-step application on the phone (about you, contact, family with quick-add chips, selfie or gallery photo resized on the device, sign-in and consent, review) with the draft kept on the device. Every active member gets an **electronic membership card** on their profile: club colours, photo, name in both scripts, number, type, blood group, joined date, validity and the QR the office scans; save as PNG, share, or print. The office prints the same design in batches. |
+| **Handbook** | `/help`: a bilingual guide for members and office bearers, printable, linked from the app and the landing page. |
 | **Push & scheduling** | **Web Push** notifications to the phone / browser (VAPID, no third-party service), broadcasts scheduled for a later time, a "blood donor request" preset that targets one blood group. |
 | **Admin** | Roles (admin, president, secretary, treasurer, librarian, member) with a permission table shown in-app, club settings, numbering formats, membership types and fees, library rules, audit log, dashboard. Installable PWA, works on phones, light and dark. |
 
@@ -137,6 +139,7 @@ app/backup.py      nightly backups, Google Drive upload and retention
 app/polls.py       polls and elections
 app/site.py        the public website page
 app/security.py    rate limiting and security headers
+app/help.py        the bilingual handbook
 app/manage.py      create-admin, seed-demo, daily
 app/static/        the PWA: app.js (core) + one file per area, i18n.js, styles.css
 tests/             workflow tests

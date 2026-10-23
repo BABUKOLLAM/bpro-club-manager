@@ -125,3 +125,24 @@ textarea.in{min-height:84px;resize:vertical}.in:focus{outline:2px solid var(--br
 .steps{counter-reset:s}.step{display:flex;gap:10px;align-items:flex-start;margin:6px 0}.step::before{counter-increment:s;content:counter(s);background:var(--brand);color:#fff;border-radius:50%;width:22px;height:22px;display:grid;place-items:center;font-size:.75rem;flex:none;font-family:Inter}
 @media print{.side,.top,.actions,.btn,.tabs,.search{display:none!important}.main{padding:0}.card{box-shadow:none;border:0}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* electronic membership card (on screen; the print version lives server-side with the same look) */
+.ecard-wrap{width:100%;max-width:428px;position:relative;margin:4px 0}
+.ecard{width:428px;height:270px;transform-origin:top left;position:absolute;left:0;top:0;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(29,42,40,.18);overflow:hidden;color:#1D2A28;font-family:Inter,"Noto Sans Malayalam",Manjari,sans-serif;font-size:11px}
+.ecard.ml{font-family:Manjari,"Noto Sans Malayalam",Inter,sans-serif}
+.ecard .band{position:absolute;left:0;top:0;right:0;height:85px;background:linear-gradient(120deg,#0F4C45,#196B61 70%,#2A8C7F);color:#fff;padding:14px 20px}
+.ecard .club{font-weight:700;font-size:12.5px;line-height:1.2;max-width:300px}.ecard .place{font-size:9px;opacity:.85;margin-top:2px}
+.ecard .short{position:absolute;right:20px;top:16px;background:rgba(255,255,255,.18);border-radius:5px;padding:2px 8px;font-weight:700;font-size:10px;font-family:Inter}
+.ecard .stripe{position:absolute;left:0;right:0;bottom:0;height:6px;background:#C9542A}
+.ecard .photo{position:absolute;left:20px;top:65px;width:110px;height:130px;object-fit:cover;border-radius:9px;border:4px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.25);background:#EEF2EF;box-sizing:border-box}
+.ecard .photo.ini{display:grid;place-items:center;font-size:56px;font-weight:700;color:#0F4C45;font-family:Inter}
+.ecard .body{position:absolute;left:145px;top:96px;right:20px}.ecard .n{font-weight:700;font-size:15px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ecard .n2{font-size:9.5px;color:#5B6B68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ecard .type{display:inline-block;margin-top:4px;background:#FBE9E1;color:#C9542A;border-radius:99px;padding:1px 7px;font-size:8.5px;font-weight:700}
+.ecard .rows{display:grid;grid-template-columns:125px 1fr;gap:8px 0;margin-top:10px}.ecard .rows small{display:block;color:#8a948f;font-size:6.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}.ecard .rows b{font-size:10px;white-space:nowrap}.ecard .rows .no{font-family:Inter;font-size:11.5px;color:#0F4C45}
+.ecard .qr{position:absolute;right:20px;bottom:20px;width:72px;height:72px}.ecard .foot{position:absolute;left:20px;bottom:8px;font-size:6.5px;color:#8a948f;font-family:Inter}
+/* application wizard */
+.steps-bar{display:flex;gap:6px;margin:10px 0 16px;overflow:auto}.steps-bar span{flex:0 0 auto;min-width:34px;text-align:center;font-size:.78rem;color:var(--muted);padding:6px 6px;border-top:3px solid var(--line);white-space:nowrap}.steps-bar span.on{flex:1}
+.steps-bar span.on{color:var(--brand-2);border-color:var(--brand-2);font-weight:600}.steps-bar span.done{border-color:var(--ok);color:var(--ok)}
+.photo-pick{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.photo-pick .pv{width:140px;height:170px;border-radius:12px;object-fit:cover;background:var(--soft);display:grid;place-items:center;color:var(--muted);font-size:2rem;border:1px solid var(--line)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{border:1px solid var(--line);background:var(--paper);border-radius:999px;padding:5px 12px;cursor:pointer;font-size:.9rem}.chip:hover{border-color:var(--brand-2);color:var(--brand-2)}
+.fam-card{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center}.fam-card .body{flex:1}
