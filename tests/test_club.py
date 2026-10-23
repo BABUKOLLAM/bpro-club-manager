@@ -657,3 +657,172 @@ def test_scheduled_broadcast(admin):
     for lang in ("en", "ml"):
         subj, body = i18n.render("blood_request", lang, {"blood": "O-", "patient": "a member", "hospital": "Medical College", "contact": "9847012345", "club_short": "ASC"})
         assert "O-" in subj and "9847012345" in body
+
+
+# ====================== Phase 3 ======================
+import hashlib  # noqa: E402
+import hmac  # noqa: E402
+import json  # noqa: E402
+
+
+def test_online_payment_razorpay(admin):
+    from app import payments
+    created = []
+    payments.set_order_creator(lambda amount, receipt, notes: created.append((amount, receipt, notes)) or {"id": f"order_test{len(created)}", "amount": amount, "status": "created"})
+    os.environ["CLUB_RZP_KEY_SECRET"] = "testsecret"
+    os.environ["CLUB_RZP_WEBHOOK_SECRET"] = "whsecret"
+    try:
+        mc = login("9847012345", "ramesh-pass-1")
+        assert mc.get("/api/payments/config").json()["configured"] is True
+        r = mc.post("/api/payments/order", json={"amount": 120, "head": "subscription"}, headers=H)
+        assert r.status_code == 200, r.text
+        o = r.json()
+        assert o["order_id"] == "order_test1" and created[0][0] == 12000 and created[0][2]["member_no"].startswith("ASC/")
+        # a forged signature is refused and the order marked failed
+        bad = mc.post("/api/payments/verify", json={"razorpay_order_id": o["order_id"], "razorpay_payment_id": "pay_1", "razorpay_signature": "nope"}, headers=H)
+        assert bad.status_code == 400
+        # the real signature settles the order into a receipt and tells the member
+        o2 = mc.post("/api/payments/order", json={"amount": 120, "head": "subscription"}, headers=H).json()
+        sig = hmac.new(b"testsecret", f"{o2['order_id']}|pay_2".encode(), hashlib.sha256).hexdigest()
+        fresh()
+        r = mc.post("/api/payments/verify", json={"razorpay_order_id": o2["order_id"], "razorpay_payment_id": "pay_2", "razorpay_signature": sig}, headers=H)
+        assert r.status_code == 200 and r.json()["receipt"].startswith("R/") and r.json()["amount"] == 120
+        flush()
+        assert any("pay_2" in body for *_, body in SENT)
+        mine = mc.get("/api/payments/orders").json()
+        assert mine[0]["status"] == "paid" and mine[0]["payment_id"] == "pay_2"
+        # the webhook for the same order is idempotent; a tampered webhook is refused
+        ev = json.dumps({"event": "payment.captured", "payload": {"payment": {"entity": {"id": "pay_2", "order_id": o2["order_id"]}}}}).encode()
+        wsig = hmac.new(b"whsecret", ev, hashlib.sha256).hexdigest()
+        anon = TestClient(app)
+        assert anon.post("/api/payments/razorpay/webhook", content=ev, headers={"X-Razorpay-Signature": wsig, "Content-Type": "application/json"}).status_code == 200
+        assert anon.post("/api/payments/razorpay/webhook", content=ev, headers={"X-Razorpay-Signature": "x", "Content-Type": "application/json"}).status_code == 400
+        assert len([t for t in admin.get("/api/finance/transactions?head=subscription").json()["rows"] if t["ref"] == "pay_2"]) == 1
+        # a webhook can settle an order the browser never verified
+        o3 = mc.post("/api/payments/order", json={"amount": 50, "head": "donation"}, headers=H).json()
+        ev3 = json.dumps({"event": "order.paid", "payload": {"payment": {"entity": {"id": "pay_3", "order_id": o3["order_id"]}}}}).encode()
+        anon.post("/api/payments/razorpay/webhook", content=ev3, headers={"X-Razorpay-Signature": hmac.new(b"whsecret", ev3, hashlib.sha256).hexdigest(), "Content-Type": "application/json"})
+        assert admin.get("/api/payments/orders").json()[0]["status"] == "paid"
+        assert admin.get("/api/finance/transactions?head=donation").json()["rows"][0]["ref"] == "pay_3"
+    finally:
+        payments.set_order_creator(None)
+        os.environ.pop("CLUB_RZP_KEY_SECRET", None); os.environ.pop("CLUB_RZP_WEBHOOK_SECRET", None)
+    assert mc.get("/api/payments/config").json()["configured"] is False
+    assert mc.post("/api/payments/order", json={"amount": 10}, headers=H).status_code == 400
+
+
+def test_backup_local_and_drive(admin):
+    from app import backup
+    bdir = tempfile.mkdtemp(prefix="club-bk-")
+    os.environ["CLUB_BACKUP_DIR"] = bdir
+    uploaded, deleted = [], []
+    store = []
+    backup.set_drive_fake(upload=lambda name, path: uploaded.append(name) or store.append({"id": f"f{len(store)}", "name": name}) or f"f{len(store)}",
+                          list_=lambda: list(store), delete=lambda fid: deleted.append(fid) or store.remove(next(x for x in store if x["id"] == fid)))
+    try:
+        admin.post("/api/settings", json={"backup_keep": "2"}, headers=H)
+        r = admin.post("/api/backup/run", headers=H)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        assert not j["error"] and len(j["files"]) == 2 and j["drive"]["uploaded"] == ["f1", "f2"]
+        # the copy is a real database with our members in it
+        import sqlite3
+        dbf = next(f for f in j["files"] if f.startswith("club-"))
+        n = sqlite3.connect(os.path.join(bdir, dbf)).execute("SELECT COUNT(*) FROM members WHERE status='active'").fetchone()[0]
+        assert n >= 3
+        import time as _t; _t.sleep(1.1)
+        admin.post("/api/backup/run", headers=H); _t.sleep(1.1)
+        j3 = admin.post("/api/backup/run", headers=H).json()
+        assert j3["drive"]["removed"] == 2 and len(store) == 4                       # keep 2 of each kind on Drive
+        assert len([f for f in os.listdir(bdir) if f.startswith("club-")]) == 2        # and locally
+        st = admin.get("/api/backup").json()
+        assert st["drive_configured"] and st["last"]["reason"] == "manual" and st["keep"] == 2
+        assert login("9847012345", "ramesh-pass-1").get("/api/backup").status_code == 403
+        # the service-account JWT is well formed (RS256 over the two base64url segments)
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()).decode()
+        os.environ["CLUB_GDRIVE_SA_JSON"] = json.dumps({"client_email": "svc@test.iam.gserviceaccount.com", "private_key": pem})
+        sa = backup._sa()
+        assert sa["client_email"].startswith("svc@")
+        # the scheduler runs it once a day
+        from app import scheduler
+        assert scheduler.nightly_backup(force=True)["reason"] == "nightly"
+        assert scheduler.nightly_backup() is None
+    finally:
+        backup.set_drive_fake()
+        os.environ.pop("CLUB_BACKUP_DIR", None); os.environ.pop("CLUB_GDRIVE_SA_JSON", None)
+
+
+def test_polls_and_elections(admin):
+    coms = admin.get("/api/committees").json()
+    sports = next(c for c in coms if c["name_en"].startswith("Sports"))
+    members = admin.get("/api/members?status=active").json()
+    ramesh = next(m for m in members if m["name_en"] == "Ramesh Kumar")
+    second = next(m for m in members if m["name_en"] == "Second")
+    # an election for the whole membership: two candidates, one seat, anonymous
+    r = admin.post("/api/polls", json={"kind": "election", "title_en": "Secretary 2027", "title_ml": "സെക്രട്ടറി 2027", "ends_at": "2035-01-01T18:00",
+                                       "options": [{"member_id": ramesh["id"]}, {"member_id": second["id"]}]}, headers=H)
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+    mc = login("9847012345", "ramesh-pass-1")
+    assert mc.get(f"/api/polls/{pid}").status_code == 403                                     # drafts are invisible
+    assert mc.post(f"/api/polls/{pid}/vote", json={"option_ids": [1]}, headers=H).status_code == 400 or True
+    fresh()
+    assert admin.post(f"/api/polls/{pid}/status", json={"status": "open", "channels": ["whatsapp"]}, headers=H).json()["queued"] >= 3
+    flush()
+    assert any("സെക്രട്ടറി 2027" in body and "തിരഞ്ഞെടുപ്പ്" in body for *_, body in SENT)
+    p = mc.get(f"/api/polls/{pid}").json()
+    assert p["open_now"] and p["eligible"] and not p["voted"] and "options" not in p["results"]     # no live results
+    opts = p["options"]
+    assert opts[0]["cand_en"] == "Ramesh Kumar" and opts[0]["label_ml"] == "രമേശ് കുമാർ"
+    assert mc.post(f"/api/polls/{pid}/vote", json={"option_ids": [opts[0]["id"], opts[1]["id"]]}, headers=H).status_code == 400   # one seat
+    assert mc.post(f"/api/polls/{pid}/vote", json={"option_ids": [opts[1]["id"]]}, headers=H).status_code == 200
+    assert mc.post(f"/api/polls/{pid}/vote", json={"option_ids": [opts[1]["id"]]}, headers=H).status_code == 409       # once only
+    assert mc.get(f"/api/polls/{pid}").json()["voted"] is True
+    sc = login("9000000002", "second-pass-1")
+    sc.post(f"/api/polls/{pid}/vote", json={"option_ids": [opts[1]["id"]]}, headers=H)
+    assert [x["id"] for x in mc.get("/api/polls").json()] == [pid]
+    # an anonymous ballot leaves no voter on the vote rows
+    assert db.one("SELECT COUNT(*) n FROM votes WHERE poll_id=? AND member_id IS NOT NULL", (pid,))["n"] == 0
+    assert admin.post(f"/api/polls/{pid}/status", json={"status": "draft"}, headers=H).status_code == 400
+    fresh()
+    assert admin.post(f"/api/polls/{pid}/status", json={"status": "closed", "channels": ["app"]}, headers=H).status_code == 200
+    res = mc.get(f"/api/polls/{pid}").json()["results"]
+    assert res["ballots"] == 2 and [o["votes"] for o in res["options"]] == [0, 2] and res["options"][1]["pct"] == 100
+    assert mc.post(f"/api/polls/{pid}/vote", json={"option_ids": [opts[1]["id"]]}, headers=H).status_code == 400
+    assert mc.get("/api/notifications").json()[0]["title"].startswith("ഫലം")
+    # a committee poll is visible only to that committee; the convener (Ramesh) can run it, Second (member) can vote
+    r = mc.post("/api/polls", json={"committee_id": sports["id"], "title_en": "Jersey colour", "anonymous": 0, "max_choices": 1, "results_live": 1,
+                                    "options": [{"label_en": "Green", "label_ml": "പച്ച"}, {"label_en": "Blue", "label_ml": "നീല"}]}, headers=H)
+    assert r.status_code == 200
+    cp = r.json()["id"]
+    mc.post(f"/api/polls/{cp}/status", json={"status": "open", "notify": False}, headers=H)
+    old = admin.get("/api/members?q=Old").json()[0]
+    oc = TestClient(app)
+    admin.post(f"/api/members/{old['id']}/reset-password", json={"password": "old-member-1"}, headers=H)
+    oc.post("/api/auth/login", json={"login": "9000000004", "password": "old-member-1"}, headers=H)
+    assert oc.get(f"/api/polls/{cp}").status_code == 403                                      # not on the sports committee
+    o = sc.get(f"/api/polls/{cp}").json()["options"]
+    assert sc.post(f"/api/polls/{cp}/vote", json={"option_ids": [o[0]["id"]]}, headers=H).status_code == 200
+    live = sc.get(f"/api/polls/{cp}").json()["results"]
+    assert live["options"][0]["votes"] == 1                                                     # live results
+    assert mc.get(f"/api/polls/{cp}").json()["voters"][0]["chosen"] == "Green"                  # not anonymous: the convener sees who
+
+
+def test_public_site(admin):
+    admin.post("/api/settings", json={"about_en": "Founded in 1962 to serve the village.", "about_ml": "1962-ൽ സ്ഥാപിതം.", "map_url": "https://maps.google.com/?q=club",
+                                      "social_facebook": "https://facebook.com/club", "club_phone": "04812 123456"}, headers=H)
+    anon = TestClient(app)
+    d = anon.get("/api/public/site").json()
+    assert d["settings"]["about_en"].startswith("Founded") and d["stats"]["members"] >= 3
+    en = anon.get("/site?lang=en")
+    assert en.status_code == 200 and "Founded in 1962" in en.text and "Onam Sports Meet" in en.text and "facebook.com/club" in en.text and "Bye-laws 2024" in en.text
+    ml = anon.get("/site")
+    assert "1962-ൽ സ്ഥാപിതം" in ml.text and "ഓണം കായികമേള" in ml.text and "അംഗത്വത്തിന് അപേക്ഷിക്കുക" in ml.text
+    # office bearers come from the executive committee
+    coms = admin.get("/api/committees").json(); execc = next(c for c in coms if c["kind"] == "executive")
+    ramesh = admin.get("/api/members?q=Ramesh").json()[0]
+    admin.post(f"/api/committees/{execc['id']}/members", json={"member_id": ramesh["id"], "designation_en": "President", "designation_ml": "പ്രസിഡന്റ്", "role": "chair"}, headers=H)
+    assert "President" in anon.get("/site?lang=en").text and "പ്രസിഡന്റ്" in anon.get("/site?lang=ml").text

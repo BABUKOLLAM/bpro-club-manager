@@ -110,12 +110,25 @@ TEMPLATES = {
         "en": ("Urgent: {blood} blood needed", "URGENT: {blood} blood is needed for {patient} at {hospital}. {detail} Please contact {contact}. - {club_short}"),
         "ml": ("അടിയന്തരം: {blood} രക്തം ആവശ്യമുണ്ട്", "അടിയന്തരം: {hospital}-ൽ {patient}-ന് {blood} രക്തം ആവശ്യമുണ്ട്. {detail} ദയവായി {contact}-ൽ ബന്ധപ്പെടുക. - {club_short}"),
     },
+    "payment_success": {
+        "en": ("Payment received", "Dear {name}, your online payment of Rs {amount} ({payment_id}) is received. Receipt No {no}. Thank you. - {club}"),
+        "ml": ("പണം ലഭിച്ചു", "പ്രിയ {name}, താങ്കളുടെ ഓൺലൈൻ പേയ്മെന്റ് Rs {amount} ({payment_id}) ലഭിച്ചു. രസീത് നമ്പർ {no}. നന്ദി. - {club}"),
+    },
+    "poll_open": {
+        "en": ("{kind}: {title}", "{club_short} {kind} is open: {title}. Please cast your vote before {ends}. {link}"),
+        "ml": ("{kind}: {title}", "{club_short} {kind} തുടങ്ങി: {title}. {ends}-ന് മുമ്പ് വോട്ട് ചെയ്യുക. {link}"),
+    },
+    "poll_results": {
+        "en": ("Results: {title}", "{club_short}: results of '{title}' are out. {summary} {link}"),
+        "ml": ("ഫലം: {title}", "{club_short}: '{title}' ഫലം പ്രസിദ്ധീകരിച്ചു. {summary} {link}"),
+    },
     "password_reset": {
         "en": ("Sign-in code", "{club_short}: your one-time sign-in code is {code}. Valid for 10 minutes."),
         "ml": ("പ്രവേശന കോഡ്", "{club_short}: താങ്കളുടെ ഒറ്റത്തവണ പ്രവേശന കോഡ് {code}. 10 മിനിറ്റ് സാധുത."),
     },
 }
 
+POLL_KIND_LABELS = {"poll": {"en": "Poll", "ml": "അഭിപ്രായ വോട്ടെടുപ്പ്"}, "election": {"en": "Election", "ml": "തിരഞ്ഞെടുപ്പ്"}}
 KIND_LABELS = {
     "news": {"en": "News", "ml": "വാർത്ത"},
     "event": {"en": "Event", "ml": "പരിപാടി"},

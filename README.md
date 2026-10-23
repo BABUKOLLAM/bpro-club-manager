@@ -29,6 +29,10 @@ An exclusive product developed by Dr. Babu B., Team Bpro · [www.drbabu.in](http
 | **Assets & bookings** | Register of chairs, sound system, sports kit and the like with a lending register and overdue reminders; **hall / ground booking** with a calendar, conflict check, member requests, office confirmation and receipt. |
 | **Tournaments & fests** | Fixtures with scores and winners for sports; judges with per-item score sheets, average-based ranking and one-click results for arts; a **championship points table** by ward / house / team. |
 | **Annual report** | Members, events, meetings and resolutions, library, accounts, bookings and assets for a year, on screen and as a printable bilingual report for the AGM. |
+| **Online payments** | Razorpay Checkout (card / UPI / net banking) from the member's dues screen: the server creates the order, verifies the signature and the webhook, issues the receipt and messages the member. Off until the keys are set; the UPI route works without it. |
+| **Backups** | A consistent SQLite copy plus the uploads folder every night, with rotation, and pushed to a **Google Drive** folder through a service account when configured. "Back up now" and the last result under Settings. |
+| **Polls & elections** | Polls and elections for all members or one committee: candidates picked from the members, one ballot per member, secret ballot by default, seats per voter, results after close or live, voters told on open and on results. |
+| **Public website** | `/site`: the club's page with about text, office bearers, upcoming public events, news, photos, documents, contact, map and social links, in English or Malayalam, with Open Graph tags for WhatsApp previews. |
 | **Push & scheduling** | **Web Push** notifications to the phone / browser (VAPID, no third-party service), broadcasts scheduled for a later time, a "blood donor request" preset that targets one blood group. |
 | **Admin** | Roles (admin, president, secretary, treasurer, librarian, member) with a permission table shown in-app, club settings, numbering formats, membership types and fees, library rules, audit log, dashboard. Installable PWA, works on phones, light and dark. |
 
@@ -94,6 +98,11 @@ Everything works without any gateway: messages are recorded in the **Outbox** as
 Message texts live in `app/i18n.py` (English and Malayalam); UI strings in `app/static/i18n.js`.
 
 **UPI**: enter the club's UPI ID and payee name under *Settings*; members then see a QR / pay link on *My payments*.
+**Razorpay**: `CLUB_RZP_KEY_ID`, `CLUB_RZP_KEY_SECRET` and, for the webhook (`/api/payments/razorpay/webhook`, events
+`payment.captured` and `order.paid`), `CLUB_RZP_WEBHOOK_SECRET`.
+**Google Drive backups**: create a service account in Google Cloud with the Drive API enabled, download its JSON key,
+share a Drive folder with the service account's e-mail, then set `CLUB_GDRIVE_SA_JSON` (path or the JSON itself) and
+`CLUB_GDRIVE_FOLDER` (the folder ID). `CLUB_BACKUP_HOUR` (default 2) and *Copies to keep* under Settings control the rest.
 **Web Push**: nothing to configure - the VAPID key pair is generated on first use and kept in the database. Members
 turn notifications on under *My profile → Notification preferences* (the app must be served over HTTPS).
 
@@ -114,6 +123,10 @@ app/reports.py     dashboard and reports
 app/scheduler.py   daily jobs
 app/facilities.py  assets and lending, facilities and bookings
 app/push.py        Web Push (VAPID + aes128gcm) without a push library
+app/payments.py    Razorpay orders, signature verification, webhook
+app/backup.py      nightly backups, Google Drive upload and retention
+app/polls.py       polls and elections
+app/site.py        the public website page
 app/manage.py      create-admin, seed-demo, daily
 app/static/        the PWA: app.js (core) + one file per area, i18n.js, styles.css
 tests/             workflow tests
