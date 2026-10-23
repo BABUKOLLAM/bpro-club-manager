@@ -427,14 +427,18 @@ def member_card(mid: int, request: Request, lang: str = "ml"):
     if not m:
         raise HTTPException(404)
     s = db.settings_all()
+    import html as _h
     import segno
+    e = _h.escape
     qr = segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=3, border=1)
-    name = i18n.pick(m, "name", lang)
-    club = s["club_name_ml" if lang == "ml" else "club_name_en"]
-    place = s["club_place_ml" if lang == "ml" else "club_place_en"]
+    name = e(i18n.pick(m, "name", lang))
+    club = e(s["club_name_ml" if lang == "ml" else "club_name_en"])
+    place = e(s["club_place_ml" if lang == "ml" else "club_place_en"])
     types = {t["key"]: t for t in json.loads(s["membership_types"])}
-    mtype = types.get(m["membership_type"], {}).get(lang) or m["membership_type"]
-    photo = f"<img class='photo' src='/uploads/{m['photo']}'>" if m["photo"] else "<div class='photo'></div>"
+    mtype = e(types.get(m["membership_type"], {}).get(lang) or m["membership_type"])
+    photo = f"<img class='photo' src='/uploads/{e(m['photo'])}'>" if m["photo"] else "<div class='photo'></div>"
+    m = {**m, "member_no": e(m["member_no"] or ""), "blood_group": e(m["blood_group"]), "joined_on": e(m["joined_on"])}
+    s = {**s, "club_phone": e(s["club_phone"])}
     lbl = {"en": ("Membership No", "Blood group", "Valid member of", "Joined"), "ml": ("അംഗത്വ നമ്പർ", "രക്തഗ്രൂപ്പ്", "അംഗം", "ചേർന്ന തീയതി")}[lang if lang in ("en", "ml") else "en"]
     return f"""<!doctype html><html lang="{lang}"><head><meta charset="utf-8"><title>{m['member_no']}</title>
 <link href="https://fonts.googleapis.com/css2?family=Manjari:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
@@ -456,13 +460,17 @@ def member_card(mid: int, request: Request, lang: str = "ml"):
 
 # ---------- batch cards ----------
 def _card_html(m, s, lang, types):
+    import html as _h
     import segno
+    e = _h.escape
     qr = segno.make(f"MEMBER:{m['member_no']}|{m['name_en']}", error="m").svg_data_uri(scale=3, border=1)
-    name = i18n.pick(m, "name", lang)
-    club = s["club_name_ml" if lang == "ml" else "club_name_en"]
-    place = s["club_place_ml" if lang == "ml" else "club_place_en"]
-    mtype = types.get(m["membership_type"], {}).get(lang) or m["membership_type"]
-    photo = f"<img class='photo' src='/uploads/{m['photo']}'>" if m["photo"] else "<div class='photo'></div>"
+    name = e(i18n.pick(m, "name", lang))
+    club = e(s["club_name_ml" if lang == "ml" else "club_name_en"])
+    place = e(s["club_place_ml" if lang == "ml" else "club_place_en"])
+    mtype = e(types.get(m["membership_type"], {}).get(lang) or m["membership_type"])
+    photo = f"<img class='photo' src='/uploads/{e(m['photo'])}'>" if m["photo"] else "<div class='photo'></div>"
+    m = {**m, "member_no": e(m["member_no"] or ""), "blood_group": e(m["blood_group"]), "joined_on": e(m["joined_on"])}
+    s = {**s, "club_phone": e(s["club_phone"])}
     lbl = {"en": ("Membership No", "Blood group", "Joined"), "ml": ("അംഗത്വ നമ്പർ", "രക്തഗ്രൂപ്പ്", "ചേർന്ന തീയതി")}[lang]
     return f"""<div class="card"><div class="band">{club}<small>{place}</small></div>{photo}
 <div class="body"><div class="n">{name}</div><div>{mtype}</div><div class="k">{lbl[0]}</div><div><b>{m['member_no']}</b></div>

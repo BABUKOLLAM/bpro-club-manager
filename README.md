@@ -106,6 +106,15 @@ share a Drive folder with the service account's e-mail, then set `CLUB_GDRIVE_SA
 **Web Push**: nothing to configure - the VAPID key pair is generated on first use and kept in the database. Members
 turn notifications on under *My profile → Notification preferences* (the app must be served over HTTPS).
 
+## Protections
+
+Sessions are HttpOnly, SameSite cookies (Secure outside `CLUB_DEV`); every state-changing call needs the `X-Club`
+header, so a form on another site cannot act as a member. Passwords are scrypt-hashed; one-time codes are hashed,
+single use, 10 minutes, 5 attempts. The public endpoints (sign-in, forgot password, application, applicant photo,
+UPI claims, gateway orders) are rate-limited per IP in `app/security.py`, which also sets the security headers and a
+Content-Security-Policy on every HTML page. Uploads are decoded and re-encoded (images) or magic-checked (PDF) before
+they are stored, and served with `nosniff`. Every printable view escapes what members typed.
+
 ## Layout
 
 ```
@@ -127,6 +136,7 @@ app/payments.py    Razorpay orders, signature verification, webhook
 app/backup.py      nightly backups, Google Drive upload and retention
 app/polls.py       polls and elections
 app/site.py        the public website page
+app/security.py    rate limiting and security headers
 app/manage.py      create-admin, seed-demo, daily
 app/static/        the PWA: app.js (core) + one file per area, i18n.js, styles.css
 tests/             workflow tests

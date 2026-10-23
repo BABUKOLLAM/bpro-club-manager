@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, Up
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, comms, db, i18n, push
+from . import auth, comms, db, i18n, push, security
 from .auth import can, current_user, require
 from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site
 
@@ -31,6 +31,7 @@ async def _lifespan(_app):
 
 
 app = FastAPI(title="Club", docs_url=None, redoc_url=None, openapi_url=None, lifespan=_lifespan)
+app.add_middleware(security.EdgeMiddleware)
 
 
 def bootstrap_admin():
@@ -406,6 +407,7 @@ def save_upload(upload: UploadFile, folder, max_mb=8):
     path = os.path.join(db.UPLOAD_DIR, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if mime.startswith("image/"):
+        # every image is decoded and re-encoded: whatever was uploaded, what we store is a plain JPEG / PNG / WebP
         try:
             from PIL import Image, ImageOps
             import io
@@ -416,9 +418,10 @@ def save_upload(upload: UploadFile, folder, max_mb=8):
             else:
                 im.convert("RGB").save(path, quality=82, optimize=True)
         except Exception:
-            with open(path, "wb") as f:
-                f.write(data)
+            raise HTTPException(400, "that is not a readable image")
     else:
+        if not data.startswith(b"%PDF"):
+            raise HTTPException(400, "that is not a PDF")
         with open(path, "wb") as f:
             f.write(data)
     return rel.replace(os.sep, "/"), mime

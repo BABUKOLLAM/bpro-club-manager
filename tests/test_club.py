@@ -32,6 +32,8 @@ def admin():
 
 
 def login(login_, pw):
+    from app import security
+    security.reset()                      # the suite signs in far more often per minute than the limiter allows
     c = TestClient(app)
     r = c.post("/api/auth/login", json={"login": login_, "password": pw}, headers=H)
     assert r.status_code == 200, r.text
@@ -826,3 +828,40 @@ def test_public_site(admin):
     ramesh = admin.get("/api/members?q=Ramesh").json()[0]
     admin.post(f"/api/committees/{execc['id']}/members", json={"member_id": ramesh["id"], "designation_en": "President", "designation_ml": "പ്രസിഡന്റ്", "role": "chair"}, headers=H)
     assert "President" in anon.get("/site?lang=en").text and "പ്രസിഡന്റ്" in anon.get("/site?lang=ml").text
+
+
+# ====================== hardening ======================
+def test_card_html_is_escaped(admin):
+    r = admin.post("/api/members", json={"name_en": "Evil <script>alert(1)</script>", "phone": "9000000077", "membership_type": "ordinary"}, headers=H)
+    assert r.status_code == 200
+    mid = r.json()["id"]
+    card = admin.get(f"/api/members/{mid}/card?lang=en").text
+    assert "<script>alert(1)</script>" not in card and "&lt;script&gt;" in card
+    sheet = admin.get("/api/members/print/cards?mtype=ordinary&lang=en").text
+    assert "<script>alert(1)</script>" not in sheet and "&lt;script&gt;" in sheet
+    admin.post(f"/api/members/{mid}/status", json={"status": "resigned"}, headers=H)
+
+
+def test_uploads_must_be_real_images_or_pdfs(admin):
+    anon = TestClient(app)
+    assert anon.post("/api/public/photo", files={"file": ("x.jpg", b"<html>not an image</html>", "image/jpeg")}).status_code == 400
+    assert admin.post("/api/upload/docs", files={"file": ("x.pdf", b"<html>not a pdf</html>", "application/pdf")}, headers=H).status_code == 400
+    import io as _io
+    from PIL import Image
+    buf = _io.BytesIO(); Image.new("RGB", (40, 40), (10, 200, 30)).save(buf, "JPEG")
+    r = anon.post("/api/public/photo", files={"file": ("ok.jpg", buf.getvalue(), "image/jpeg")})
+    assert r.status_code == 200 and r.json()["path"].endswith(".jpg")
+
+
+def test_rate_limits_and_security_headers(admin):
+    from app import security
+    security.reset()
+    anon = TestClient(app)
+    codes = [anon.post("/api/auth/login", json={"login": "nobody@x", "password": "wrong-password"}, headers=H).status_code for _ in range(12)]
+    assert codes[:10] == [401] * 10 and codes[10:] == [429, 429]
+    security.reset()
+    assert anon.post("/api/auth/login", json={"login": "nobody@x", "password": "wrong-password"}, headers=H).status_code == 401
+    r = anon.get("/")
+    assert r.headers["X-Content-Type-Options"] == "nosniff" and r.headers["X-Frame-Options"] == "SAMEORIGIN" and "default-src 'self'" in r.headers["Content-Security-Policy"]
+    assert "Content-Security-Policy" not in anon.get("/api/public/info").headers       # JSON gets the other headers only
+    assert anon.get("/api/public/info").headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
