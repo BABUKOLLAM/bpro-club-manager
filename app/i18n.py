@@ -1,0 +1,149 @@
+"""Server-side texts: the messages that go out by WhatsApp, SMS, e-mail and in-app notification, in English and Malayalam.
+
+Each template has a short `subject` (used as e-mail subject / notification title) and a `body`. `{placeholders}` are
+filled from the context the caller passes. SMS bodies are kept short on purpose: Malayalam SMS is Unicode and costs
+70 characters per segment.
+"""
+
+TEMPLATES = {
+    "application_received": {
+        "en": ("Application received", "Dear {name}, your membership application to {club} has been received. "
+               "We will inform you once the committee approves it. - {club_short}"),
+        "ml": ("അപേക്ഷ ലഭിച്ചു", "പ്രിയ {name}, {club} അംഗത്വത്തിനുള്ള താങ്കളുടെ അപേക്ഷ ലഭിച്ചു. "
+               "കമ്മിറ്റി അംഗീകരിച്ചാലുടൻ അറിയിക്കുന്നതാണ്. - {club_short}"),
+    },
+    "application_approved": {
+        "en": ("Welcome to {club_short}", "Dear {name}, your membership is approved. Membership No: {member_no}. "
+               "Sign in at {link} with your phone/e-mail to update your family details and receive club news. - {club}"),
+        "ml": ("{club_short}-ലേക്ക് സ്വാഗതം", "പ്രിയ {name}, താങ്കളുടെ അംഗത്വം അംഗീകരിച്ചു. അംഗത്വ നമ്പർ: {member_no}. "
+               "കുടുംബവിവരങ്ങൾ പുതുക്കാനും ക്ലബ്ബ് വാർത്തകൾ ലഭിക്കാനും {link} എന്നതിൽ പ്രവേശിക്കുക. - {club}"),
+    },
+    "application_rejected": {
+        "en": ("Membership application", "Dear {name}, we are sorry - your membership application could not be accepted at this time. {note} - {club}"),
+        "ml": ("അംഗത്വ അപേക്ഷ", "പ്രിയ {name}, ക്ഷമിക്കണം - താങ്കളുടെ അംഗത്വ അപേക്ഷ ഇപ്പോൾ സ്വീകരിക്കാനായില്ല. {note} - {club}"),
+    },
+    "news": {
+        "en": ("{title}", "{club_short} News: {title}\n{summary}\n{link}"),
+        "ml": ("{title}", "{club_short} വാർത്ത: {title}\n{summary}\n{link}"),
+    },
+    "event": {
+        "en": ("{title}", "{club_short} {kind_label}: {title}\nWhen: {when}\nWhere: {venue}\n{summary}\n{link}"),
+        "ml": ("{title}", "{club_short} {kind_label}: {title}\nതീയതി: {when}\nസ്ഥലം: {venue}\n{summary}\n{link}"),
+    },
+    "event_reminder": {
+        "en": ("Reminder: {title}", "Reminder from {club_short}: {title} is on {when} at {venue}. {link}"),
+        "ml": ("ഓർമ്മപ്പെടുത്തൽ: {title}", "{club_short} ഓർമ്മപ്പെടുത്തൽ: {title} - {when}, {venue}. {link}"),
+    },
+    "registration_confirmed": {
+        "en": ("Registered: {title}", "Dear {name}, {participant} is registered for {title} ({item}). {when}, {venue}. - {club_short}"),
+        "ml": ("രജിസ്റ്റർ ചെയ്തു: {title}", "പ്രിയ {name}, {participant} {title} ({item}) -ൽ രജിസ്റ്റർ ചെയ്തു. {when}, {venue}. - {club_short}"),
+    },
+    "results": {
+        "en": ("Results: {title}", "{club_short}: results of {title} are published. {link}"),
+        "ml": ("ഫലം: {title}", "{club_short}: {title} -ന്റെ ഫലങ്ങൾ പ്രസിദ്ധീകരിച്ചു. {link}"),
+    },
+    "meeting_notice": {
+        "en": ("Meeting: {title}", "{committee} meeting notice\n{title}\nDate: {when}\nVenue: {venue}\nAgenda:\n{agenda}\nKindly attend. - {convener}"),
+        "ml": ("യോഗം: {title}", "{committee} യോഗ അറിയിപ്പ്\n{title}\nതീയതി: {when}\nസ്ഥലം: {venue}\nഅജണ്ട:\n{agenda}\nദയവായി പങ്കെടുക്കുക. - {convener}"),
+    },
+    "mom_published": {
+        "en": ("Minutes: {title}", "Minutes of {committee} meeting held on {when} are published. {link}"),
+        "ml": ("മിനിറ്റ്സ്: {title}", "{when}-ന് നടന്ന {committee} യോഗത്തിന്റെ മിനിറ്റ്സ് പ്രസിദ്ധീകരിച്ചു. {link}"),
+    },
+    "action_assigned": {
+        "en": ("Action: {title}", "Dear {name}, you are responsible for: {title}. Due: {due}. ({committee}) {link}"),
+        "ml": ("ചുമതല: {title}", "പ്രിയ {name}, താങ്കൾക്ക് ചുമതല: {title}. അവസാന തീയതി: {due}. ({committee}) {link}"),
+    },
+    "book_issued": {
+        "en": ("Book issued", "Dear {name}, '{book}' (Acc. {acc}) is issued to you. Please return by {due}. - {club_short} Library"),
+        "ml": ("പുസ്തകം നൽകി", "പ്രിയ {name}, '{book}' (Acc. {acc}) താങ്കൾക്ക് നൽകി. {due}-നകം തിരികെ നൽകുക. - {club_short} ലൈബ്രറി"),
+    },
+    "book_due": {
+        "en": ("Book due", "Dear {name}, '{book}' is due on {due}. Please return or renew. - {club_short} Library"),
+        "ml": ("പുസ്തകം തിരികെ നൽകേണ്ട തീയതി", "പ്രിയ {name}, '{book}' {due}-ന് തിരികെ നൽകേണ്ടതാണ്. - {club_short} ലൈബ്രറി"),
+    },
+    "book_overdue": {
+        "en": ("Book overdue", "Dear {name}, '{book}' was due on {due} ({days} days ago). Fine so far: Rs {fine}. Please return it. - {club_short} Library"),
+        "ml": ("പുസ്തകം കാലാവധി കഴിഞ്ഞു", "പ്രിയ {name}, '{book}' {due}-ന് തിരികെ നൽകേണ്ടതായിരുന്നു ({days} ദിവസം കഴിഞ്ഞു). പിഴ: Rs {fine}. ദയവായി തിരികെ നൽകുക. - {club_short} ലൈബ്രറി"),
+    },
+    "reservation_ready": {
+        "en": ("Book available", "Dear {name}, '{book}' you reserved is now available. Please collect within 3 days. - {club_short} Library"),
+        "ml": ("പുസ്തകം ലഭ്യമാണ്", "പ്രിയ {name}, താങ്കൾ റിസർവ് ചെയ്ത '{book}' ഇപ്പോൾ ലഭ്യമാണ്. 3 ദിവസത്തിനകം വാങ്ങുക. - {club_short} ലൈബ്രറി"),
+    },
+    "receipt": {
+        "en": ("Receipt {no}", "Dear {name}, received Rs {amount} towards {head} on {date}. Receipt No {no}. Thank you. - {club}"),
+        "ml": ("രസീത് {no}", "പ്രിയ {name}, {date}-ന് {head} ഇനത്തിൽ Rs {amount} ലഭിച്ചു. രസീത് നമ്പർ {no}. നന്ദി. - {club}"),
+    },
+    "subscription_due": {
+        "en": ("Subscription due", "Dear {name}, your {year} annual subscription of Rs {amount} is due. Kindly pay at the club office. - {club_short}"),
+        "ml": ("വരിസംഖ്യ അടയ്ക്കാനുണ്ട്", "പ്രിയ {name}, {year} വർഷത്തെ വാർഷിക വരിസംഖ്യ Rs {amount} അടയ്ക്കാനുണ്ട്. ക്ലബ്ബ് ഓഫീസിൽ അടയ്ക്കുക. - {club_short}"),
+    },
+    "birthday": {
+        "en": ("Happy birthday", "Dear {name}, warm birthday wishes from all of us at {club}!"),
+        "ml": ("ജന്മദിനാശംസകൾ", "പ്രിയ {name}, {club} -ലെ ഞങ്ങളുടെ എല്ലാവരുടെയും ഹൃദയം നിറഞ്ഞ ജന്മദിനാശംസകൾ!"),
+    },
+    "broadcast": {
+        "en": ("{subject}", "{body}"),
+        "ml": ("{subject}", "{body}"),
+    },
+    "password_reset": {
+        "en": ("Sign-in code", "{club_short}: your one-time sign-in code is {code}. Valid for 10 minutes."),
+        "ml": ("പ്രവേശന കോഡ്", "{club_short}: താങ്കളുടെ ഒറ്റത്തവണ പ്രവേശന കോഡ് {code}. 10 മിനിറ്റ് സാധുത."),
+    },
+}
+
+KIND_LABELS = {
+    "news": {"en": "News", "ml": "വാർത്ത"},
+    "event": {"en": "Event", "ml": "പരിപാടി"},
+    "camp": {"en": "Camp", "ml": "ക്യാമ്പ്"},
+    "competition": {"en": "Competition", "ml": "മത്സരം"},
+    "activity": {"en": "Social activity", "ml": "സാമൂഹിക പ്രവർത്തനം"},
+    "notice": {"en": "Notice", "ml": "അറിയിപ്പ്"},
+}
+
+HEAD_LABELS = {
+    "admission": {"en": "Admission fee", "ml": "പ്രവേശന ഫീസ്"},
+    "subscription": {"en": "Annual subscription", "ml": "വാർഷിക വരിസംഖ്യ"},
+    "donation": {"en": "Donation", "ml": "സംഭാവന"},
+    "event_fee": {"en": "Event fee", "ml": "പരിപാടി ഫീസ്"},
+    "library_fine": {"en": "Library fine", "ml": "ലൈബ്രറി പിഴ"},
+    "library_deposit": {"en": "Library deposit", "ml": "ലൈബ്രറി നിക്ഷേപം"},
+    "sponsorship": {"en": "Sponsorship", "ml": "സ്പോൺസർഷിപ്പ്"},
+    "grant": {"en": "Grant", "ml": "ഗ്രാന്റ്"},
+    "other_income": {"en": "Other income", "ml": "മറ്റ് വരുമാനം"},
+    "event_expense": {"en": "Event expense", "ml": "പരിപാടി ചെലവ്"},
+    "books": {"en": "Books & periodicals", "ml": "പുസ്തകങ്ങൾ & ആനുകാലികങ്ങൾ"},
+    "rent": {"en": "Rent & utilities", "ml": "വാടക & യൂട്ടിലിറ്റി"},
+    "salary": {"en": "Salary & honorarium", "ml": "ശമ്പളം & ഓണറേറിയം"},
+    "maintenance": {"en": "Maintenance", "ml": "അറ്റകുറ്റപ്പണി"},
+    "charity": {"en": "Charity & welfare", "ml": "ജീവകാരുണ്യം & ക്ഷേമം"},
+    "other_expense": {"en": "Other expense", "ml": "മറ്റ് ചെലവ്"},
+}
+RECEIPT_HEADS = ["admission", "subscription", "donation", "event_fee", "library_fine", "library_deposit", "sponsorship", "grant", "other_income"]
+PAYMENT_HEADS = ["event_expense", "books", "rent", "salary", "maintenance", "charity", "other_expense"]
+
+
+class _Safe(dict):
+    def __missing__(self, k):
+        return ""
+
+
+def render(key, lang, ctx):
+    lang = lang if lang in ("en", "ml") else "en"
+    subject, body = TEMPLATES[key][lang]
+    safe = _Safe(ctx)
+    return subject.format_map(safe).strip(), body.format_map(safe).strip()
+
+
+def label(table, key, lang):
+    item = table.get(key)
+    if not item:
+        return key
+    return item.get(lang) or item.get("en") or key
+
+
+def pick(row, field, lang):
+    """Bilingual field: the requested language, falling back to the other."""
+    a = row.get(f"{field}_{lang}") or ""
+    b = row.get(f"{field}_{'en' if lang == 'ml' else 'ml'}") or ""
+    return a or b

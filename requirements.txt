@@ -1,0 +1,8 @@
+# Pinned to the versions tested. Upgrade on purpose, not by accident.
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn[standard]==0.53.0
+python-multipart==0.0.32
+pydantic==2.13.5
+pillow==12.3.0
+segno==1.6.6

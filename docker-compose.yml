@@ -1,0 +1,10 @@
+services:
+  club:
+    build: .
+    container_name: club
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8810:8000"   # put Caddy / nginx in front with HTTPS: the sign-in cookie is Secure outside CLUB_DEV
