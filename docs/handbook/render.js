@@ -4,6 +4,8 @@ const path = require('path');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/node-tools/node_modules/playwright')); }
 const HERE = __dirname;
+const fs = require('fs');
+const FOOTER_LOGO = (() => { try { return fs.readFileSync(path.join(HERE, 'brand', 'footer-logo.b64'), 'utf8').trim(); } catch (e) { return ''; } })();
 const inFile = process.argv[2] || path.join(HERE, 'handbook.html'), outFile = process.argv[3] || path.join(HERE, 'ClubPro-Handbook.pdf'), plain = process.argv[4] === 'plain';
 (async () => {
   const browser = await chromium.launch();
@@ -16,7 +18,7 @@ const inFile = process.argv[2] || path.join(HERE, 'handbook.html'), outFile = pr
   else await page.pdf({
     ...common, outline: true, tagged: true, displayHeaderFooter: true,
     headerTemplate: `<div style="font-family:Inter,sans-serif;font-size:7.5pt;color:#5A6079;width:100%;padding:0 16mm;display:flex;justify-content:space-between"><span style="font-weight:600;color:#4F46E5">ClubPro</span><span>User Manual &amp; Handbook</span><span>www.bpropms.com</span></div>`,
-    footerTemplate: `<div style="font-family:Inter,sans-serif;font-size:7.5pt;color:#5A6079;width:100%;padding:0 16mm;display:flex;justify-content:space-between;align-items:center"><span>Designed &amp; Developed by Dr. Babu B · Bpro Consulting &amp; Technologies</span><span style="font-weight:700;color:#4F46E5">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span><span style="width:34mm"></span></div>`,
+    footerTemplate: `<div style="font-family:Inter,sans-serif;font-size:7.5pt;color:#5A6079;width:100%;padding:0 16mm;display:flex;justify-content:space-between;align-items:center"><span style="display:flex;align-items:center;gap:2.5mm">${FOOTER_LOGO ? `<img src="data:image/png;base64,${FOOTER_LOGO}" style="height:4.2mm">` : ''}<span>Designed &amp; Developed by Dr. Babu B · Bpro Consulting &amp; Technologies</span></span><span style="font-weight:700;color:#4F46E5">Page <span class="pageNumber"></span> of <span class="totalPages"></span></span><span style="width:34mm"></span></div>`,
     margin: { top: '17mm', bottom: '22mm', left: '16mm', right: '16mm' },
   });
   await browser.close();
