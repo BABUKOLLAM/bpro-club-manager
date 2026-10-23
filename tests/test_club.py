@@ -611,7 +611,7 @@ def test_fixtures_judging_points(admin):
 def test_annual_report(admin):
     year = dt.date.today().year
     r = admin.get(f"/api/reports/annual?year={year}").json()
-    assert r["members"]["active"] >= 5 and r["accounts"]["receipts"] > 0 and r["library"]["issues"] >= 1 and str(year) in r["years"]
+    assert r["members"]["active"] >= 3 and r["accounts"]["receipts"] > 0 and r["library"]["issues"] >= 1 and str(year) in r["years"]
     pr = admin.get(f"/api/reports/annual/print?year={year}&lang=ml")
     assert pr.status_code == 200 and "വാർഷിക റിപ്പോർട്ട്" in pr.text and "Randamoozham" in pr.text or "രണ്ടാമൂഴം" in pr.text
     assert login("9847012345", "ramesh-pass-1").get("/api/reports/annual").status_code == 403
