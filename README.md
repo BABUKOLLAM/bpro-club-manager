@@ -1,6 +1,6 @@
 # Club Manager · ക്ലബ്ബ് മാനേജർ
 
-Management app for an **Arts & Sports Club cum Library and Reading Room**: membership and family records, news and
+Management app for an **Arts & Sports Club cum Library and Reading Room** (and, in association mode, a flat owners' or residents' welfare association): membership and family records, news and
 events, committees and meetings with online minutes, the library and reading room, accounts, and bilingual
 (English / Malayalam) communication by WhatsApp, SMS, e-mail and in-app notifications.
 
@@ -29,6 +29,7 @@ An exclusive product developed by Dr. Babu B., Team Bpro · [www.drbabu.in](http
 | **Assets & bookings** | Register of chairs, sound system, sports kit and the like with a lending register and overdue reminders; **hall / ground booking** with a calendar, conflict check, member requests, office confirmation and receipt. |
 | **Tournaments & fests** | Fixtures with scores and winners for sports; judges with per-item score sheets, average-based ranking and one-click results for arts; a **championship points table** by ward / house / team. |
 | **Annual report** | Members, events, meetings and resolutions, library, accounts, bookings and assets for a year, on screen and as a printable bilingual report for the AGM. |
+| **Residents' association mode** | Settings → "This organisation is a flat owners' / residents' association": wording switches to residents, units and blocks, the library hides and three modules switch on (each can be toggled): a **units register** (bulk entry, owner / tenant / family residents, printable statement per unit; self-registration names the unit), **maintenance billing** per unit per month or quarter on a flat, per-square-foot or per-type rule with per-unit overrides, late fees, receipts under *Maintenance charges* settling bills oldest first, bills under *My payments* with UPI / online payment, defaulters and reminders, and a **complaints helpdesk** (categories, priority, assignment, notes, status messages to the resident). |
 | **Society accounts** | Financial years (April to March by default), opening balances, cash book and bank book with contra entries, ledger by head, **Receipts & Payments**, **Income & Expenditure** and **Balance Sheet** for the year (every head has a nature: income, expense, asset, liability or fund; add the club's own heads), printable bilingual with signature lines, year close that locks the year and carries the balances forward (reopen for the auditor), and a **Tally XML** export of the vouchers. |
 | **Library Council pack** | The annual affiliation statement for the Kerala State Library Council read from the registers (stock, additions, members, circulation, reading room, newspapers, programmes, library accounts, grants, office bearers), a grade estimate against thresholds kept in Settings with the shortfall to the next grade per criterion, and a grants register with vouchers charged to each grant and a printable **utilisation certificate**. |
 | **Online payments** | Razorpay Checkout (card / UPI / net banking) from the member's dues screen: the server creates the order, verifies the signature and the webhook, issues the receipt and messages the member. Off until the keys are set; the UPI route works without it. |
@@ -55,6 +56,7 @@ their own committee's meetings, minutes and actions without any office role.
 | Library catalogue, issue / return, reading room | ✔ | – | ✔ | – | ✔ | – |
 | Accounts, receipts, dues | ✔ | view | ✔ | ✔ | – | – |
 | Close / reopen a financial year | ✔ | – | – | ✔ | – | – |
+| Helpdesk: assign, update, close complaints | ✔ | ✔ | ✔ | – | – | own only |
 | Users & roles | ✔ | – | ✔ | – | – | – |
 | Settings, audit log | ✔ | – | – | – | – | – |
 

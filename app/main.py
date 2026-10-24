@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import auth, brand, comms, db, i18n, push, security, tenancy
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, ledger, council, reports, scheduler, facilities, payments, backup, polls, site, saas, legal, help as helpdoc
+from . import members, news, committees, library, finance, ledger, council, assoc, reports, scheduler, facilities, payments, backup, polls, site, saas, legal, help as helpdoc
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -141,6 +141,10 @@ def public_info():
     out["upi_id"] = s["upi_id"]
     out["upi_name"] = s["upi_name"]
     out["brand"] = brand.palette(s)
+    out["org_kind"] = assoc.org_kind()
+    out["features"] = assoc.features()
+    out["unit_types"] = json.loads(s["unit_types"]) if s["unit_types"] else []
+    out["occupancy"] = assoc.OCCUPANCY
     p = saas.plan_of(tenancy.current.get())
     out["plan"] = {"status": p["status"], "days_left": p["days_left"], "read_only": p.get("read_only", False), "exempt": p["exempt"], "product": saas.product()["name"]}
     return out
@@ -198,6 +202,9 @@ def settings_for(u):
     s["heads"] = {"receipt": ledger.heads_for("receipt"), "payment": ledger.heads_for("payment"), "labels": ledger.labels(), "natures": {h["key"]: h["nature"] for h in ledger.heads()}}
     s["fy"] = {"current": ledger.current_fy(), "start_month": ledger.start_month()}
     s["custom_heads"] = ledger.custom_heads()
+    s["unit_types"] = json.loads(s["unit_types"] or "[]")
+    s["maint_rates_by_type"] = json.loads(s["maint_rates_by_type"] or "{}")
+    s["features"] = assoc.features()
     s["council_criteria"] = council.criteria()
     s["roles"] = auth.ROLE_LABELS
     s["teams"] = json.loads(s["teams"])
@@ -450,9 +457,9 @@ async def save_settings(request: Request, user=Depends(require("settings.manage"
                 continue
             if k in comms.SECRET_SETTINGS and v == MASK:
                 continue
-            if k in ("membership_types", "wards", "teams", "custom_heads"):
+            if k in ("membership_types", "wards", "teams", "custom_heads", "unit_types"):
                 v = json.dumps(v if isinstance(v, list) else json.loads(v or "[]"))
-            if k in ("head_nature", "council_criteria"):
+            if k in ("head_nature", "council_criteria", "features", "maint_rates_by_type"):
                 v = json.dumps(v if isinstance(v, dict) else json.loads(v or "{}"))
             if k == "fy_start_month":
                 v = str(min(12, max(1, int(v or 4))))
@@ -653,7 +660,9 @@ def audit_log(limit: int = 300, user=Depends(require("settings.manage"))):
 # ---------- dashboard ----------
 @app.get("/api/dashboard")
 def dashboard(user=Depends(current_user)):
-    return reports.dashboard(user)
+    d = reports.dashboard(user)
+    d["assoc"] = assoc.dashboard_extra(user)
+    return d
 
 
 # ---------- platform (multi-club) ----------
@@ -800,6 +809,7 @@ app.include_router(library.router)
 app.include_router(finance.router)
 app.include_router(ledger.router)
 app.include_router(council.router)
+app.include_router(assoc.router)
 app.include_router(reports.router)
 app.include_router(facilities.router)
 app.include_router(payments.router)

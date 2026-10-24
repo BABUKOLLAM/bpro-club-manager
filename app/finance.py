@@ -38,8 +38,11 @@ def record(c, user_id, b, notify=True):
     mode = b.get("mode") if b.get("mode") in MODES else "cash"
     row = {"kind": kind, "no": _no(c, kind, year), "tx_date": tx_date, "head": head, "member_id": b.get("member_id") or None, "post_id": b.get("post_id") or None,
            "party": (b.get("party") or "").strip(), "amount": amount, "mode": mode, "ref": (b.get("ref") or "").strip(), "note": (b.get("note") or "").strip(),
-           "year": int(b.get("year") or year), "created_by": user_id, "created": time.time(), "grant_id": b.get("grant_id") or None}
+           "year": int(b.get("year") or year), "created_by": user_id, "created": time.time(), "grant_id": b.get("grant_id") or None, "unit_id": b.get("unit_id") or None}
     row["id"] = db.insert(c, "transactions", row)
+    if kind == "receipt":
+        from . import assoc
+        assoc.on_receipt(c, row)
     if kind == "receipt" and row["member_id"] and head == "subscription":
         sub = db.one("SELECT * FROM subscriptions WHERE member_id=? AND year=? ", (row["member_id"], row["year"]))
         if sub:
@@ -107,6 +110,9 @@ async def void_transaction(tid: int, request: Request, user=Depends(require("fin
     ledger.assert_open(t["tx_date"])
     with db.tx() as c:
         db.update(c, "transactions", tid, {"void": 1, "void_note": note})
+        if t["head"] == "maintenance" and t["unit_id"]:
+            from . import assoc
+            assoc.resettle_unit(c, t["unit_id"])
         if t["kind"] == "receipt" and t["head"] == "subscription" and t["member_id"]:
             sub = db.one("SELECT * FROM subscriptions WHERE member_id=? AND year=?", (t["member_id"], t["year"]))
             if sub:
@@ -181,7 +187,8 @@ def my_payments(user=Depends(current_user)):
     mid = user.get("member_id")
     if not mid:
         return {"dues": [], "receipts": []}
-    return {"dues": db.q("SELECT * FROM subscriptions WHERE member_id=? AND status='due' ORDER BY year", (mid,)),
+    from . import assoc
+    return {"dues": db.q("SELECT * FROM subscriptions WHERE member_id=? AND status='due' ORDER BY year", (mid,)), "maintenance": assoc.my_bills(mid) if assoc.feature("maintenance") else None,
             "receipts": db.q("SELECT * FROM transactions WHERE member_id=? AND kind='receipt' AND void=0 ORDER BY tx_date DESC, id DESC LIMIT 100", (mid,)),
             "claims": db.q("SELECT * FROM payment_claims WHERE member_id=? ORDER BY id DESC LIMIT 20", (mid,)), "upi": bool(db.setting("upi_id"))}
 

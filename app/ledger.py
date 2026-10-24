@@ -19,7 +19,7 @@ from .auth import require
 
 router = APIRouter(prefix="/api/accounts")
 NATURES = ["income", "expense", "asset", "liability", "fund"]
-DEFAULT_NATURE = {"library_deposit": "liability", "books": "asset", "furniture": "asset", "building": "asset", "deposit_refund": "liability", "building_fund": "fund", "corpus": "fund"}
+DEFAULT_NATURE = {"library_deposit": "liability", "books": "asset", "furniture": "asset", "building": "asset", "deposit_refund": "liability", "building_fund": "fund", "corpus": "fund", "sinking_fund": "fund"}
 DEFAULT_ITEM = {"deposit_refund": "library_deposit"}   # heads that move the same balance-sheet item
 CONTRA_HEADS = {"cash_to_bank": {"en": "Cash deposited in bank", "ml": "ബാങ്കിൽ നിക്ഷേപിച്ച പണം"}, "bank_to_cash": {"en": "Cash withdrawn from bank", "ml": "ബാങ്കിൽ നിന്ന് പിൻവലിച്ച പണം"}}
 CASH_MODES = {"cash"}
