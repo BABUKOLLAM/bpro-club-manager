@@ -1,6 +1,6 @@
 # ClubPro handbook
 
-`ClubPro-Handbook.pdf` is the user manual and handbook (v1.4, the readability edition): members, office bearers, operator and a
+`ClubPro-Handbook.pdf` is the user manual and handbook (v1.5): members, office bearers, operator and a
 reference part, with 120+ screenshots cropped to their content, numbered pointers and tooltips, lens zoom-ins, sticky notes, missions and badges,
 a barcode on every page (`CLUBPRO-HB-<version>-P<page>`), a part-coloured frame ribbon in the outer margin of every content
 page, a running header, a page-number pill, PDF bookmarks, a full-bleed cover, six full-bleed part openers that list their chapters, a contents page with page numbers, credits and a release history.
