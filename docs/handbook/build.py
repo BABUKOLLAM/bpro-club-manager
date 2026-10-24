@@ -8,7 +8,7 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 IMG = "img"
 e = html.escape
-VERSION = "1.2"
+VERSION = "1.3"
 VERSION_DATE = "October 2026"
 CREDIT_NAME = "Dr. Babu B"
 CREDIT_QUALS = "MBA, MPhil, PGDTRM, PGDHRM, Ph.D. (UGC-NET)"
@@ -17,7 +17,7 @@ CREDIT_SITES = ["www.bpropms.com", "www.drbabu.in", "www.bprohrms.com", "www.cop
 _SIZES = {}
 LOGO_WHITE = "brand/bpro-logo-white.png"
 LOGO_NAVY = "brand/bpro-logo-navy.png"
-HISTORY = [  # version, date, what changed (eight releases over twenty months)
+HISTORY = [  # version, date, what changed (nine releases over twenty months)
     ("0.2", "February 2025", "Discovery: workshops with three clubs in Kottayam, audit of paper registers and WhatsApp groups; requirements for membership, library and events agreed."),
     ("0.4", "June 2025", "Pilot: membership register with online application, approval and numbering; Malayalam interface; e-card prototype; first club live."),
     ("0.6", "September 2025", "Library and reading room; events with registration and reminders; WhatsApp / SMS / e-mail outbox; family details and blood groups."),
@@ -26,6 +26,7 @@ HISTORY = [  # version, date, what changed (eight releases over twenty months)
     ("1.0", "October 2026", "Multi-club platform, white label per club, ClubPro as a service with signup, pricing and billing; first edition of this handbook."),
     ("1.1", "October 2026", "Visual edition: colour system, numbered pointers and tooltips, lens zoom-ins, sticky notes, missions and badges, barcodes on every page, contents with page numbers."),
     ("1.2", "October 2026", "Full-bleed cover, decorative page frames, the Bpro logo, release history."),
+    ("1.3", "October 2026", "Society accounts (statements, cash book, year close, Tally), the Library Council pack, and a new part on residents' associations: units, maintenance billing, helpdesk."),
 ]
 
 
@@ -136,7 +137,7 @@ def close():
     return ""
 
 
-TOTAL_CH = 42
+TOTAL_CH = 49
 PAGES = {}   # chapter number -> page, filled by the second pass
 
 
@@ -150,7 +151,7 @@ def chapter(num, title, sub, part):
 
 
 LEVELS = {"A": ("0", "Welcome", "read the map"), "B": ("1", "Member", "apply, e-card, events, library, pay"), "C": ("2", "Office bearer", "approve, publish, minutes, accounts"),
-          "D": ("3", "Operator", "server, console, billing"), "E": ("★", "Reference", "look anything up")}
+          "D": ("3", "Operator", "server, console, billing"), "E": ("4", "Association", "units, maintenance, complaints"), "F": ("★", "Reference", "look anything up")}
 
 
 def part_opener(letter, title, blurb, items):
@@ -253,10 +254,11 @@ def build():
            ("B", "Members' guide", ["Getting started", "Applying for membership", "Signing in and forgotten passwords", "Home and the menu", "Profile, family and the e-card",
                                     "Notifications and preferences", "News, events and competitions", "Library and reading room", "Paying dues and fees", "Documents, bookings, polls, meetings, directory"]),
            ("C", "Office bearers' guide", ["Roles and who can do what", "The dashboard", "First-time setup", "Applications and the members register", "Publishing news, events and competitions",
-                                           "Committees, meetings, minutes, actions and plans", "The library desk", "Accounts, dues and payments", "Facilities, assets and documents", "Broadcasts and the outbox",
+                                           "Committees, meetings, minutes, actions and plans", "The library desk", "The Library Council pack", "Accounts, dues and payments", "Statements, cash book and the year close", "Facilities, assets and documents", "Broadcasts and the outbox",
                                            "Polls and elections", "Scan QR at the door", "Reports, annual report, audit and backups", "The public website and the in-app handbook", "Your ClubPro subscription"]),
            ("D", "Operator's guide", ["How the platform is built", "Installing on a server", "The platform console", "Clubs signing up by themselves", "Billing, reminders and suspension", "White label per club", "Message channels and payment gateways", "Backups and safety"]),
-           ("E", "Reference", ["Permissions matrix", "Numbering formats", "Automatic messages", "Environment variables", "Glossary English · Malayalam", "Frequently asked questions"])]
+           ("E", "Residents' associations", ["Switching on association mode", "Units and residents", "Maintenance billing", "Complaints and the helpdesk", "A resident's phone"]),
+           ("F", "Reference", ["Permissions matrix", "Numbering formats", "Automatic messages", "Environment variables", "Glossary English · Malayalam", "Frequently asked questions"])]
     n = 1
     rows = []
     for letter, title, chs in toc:
@@ -397,7 +399,7 @@ def build():
                   ["Set the club up once: names, numbering, membership types, branding, channels", "Approve applications and keep the register", "Publish, broadcast, record minutes, close the accounts"]))
     A(chapter(14, "Roles and who can do what", "Five office roles, one administrator", "Part C · Office"))
     A(glance(["Roles are given under Office → Users by the administrator or secretary.", "A committee convener additionally manages their own committee's meetings and minutes.",
-              "The full permissions matrix is in Part E."]))
+              "The full permissions matrix is in Part F."]))
     A(table(["Role", "Malayalam", "Can"],
             [["Administrator", "അഡ്മിനിസ്ട്രേറ്റർ", "everything, including Settings, Users, backups and the subscription"],
              ["President", "പ്രസിഡന്റ്", "members and applications, publishing, broadcasts, committees and minutes, accounts (view), reports"],
@@ -423,7 +425,7 @@ def build():
              ("Membership types &amp; fees", "life, ordinary, associate, student, honorary — or your own, with admission and annual fees in rupees. These drive dues."),
              ("Library", "loan period, books per member, fine per day, online renewals; event reminder days."),
              ("Website", "about text in both languages, map link, social links and a cover photo for the public website."),
-             ("Branding", "logo, primary and accent colour, app name, footer credit (chapter 37 explains)."),
+             ("Branding", "logo, primary and accent colour, app name, footer credit (chapter 44 explains)."),
              ("Communication", "channel status and, if the club has its own WhatsApp / SMS / e-mail / Razorpay accounts, their keys."),
              ("Save", "the button at the bottom saves every card at once.")]))
     A(fig("d-settings-numbering", "Numbering: the formats and the sequence rule.", "desk"))
@@ -509,7 +511,23 @@ def build():
     A(fig("d-periodicals", "Newspapers and periodicals.", "small"))
     A(sticky("Print the accession numbers as labels from the catalogue; the issue desk then scans books as fast as e-cards.", "blue", "Librarian's tip"))
     A(quest("Mission 8 · The desk", ["Add a book with two copies", "Issue one copy to a member and return it after the due date to see the fine", "Record a reading-room visit by scanning an e-card"], 30))
-    A(chapter(21, "Accounts, dues and payments", "Receipts, vouchers, UPI and online", "Part C · Office"))
+    A(chapter(21, "The Library Council pack", "The affiliation return, a grade estimate, grants and utilisation certificates", "Part C · Office"))
+    A(glance(["Library → Library Council reads the year's affiliation statement straight from the registers you already keep: stock, additions, members, circulation, reading room, newspapers, programmes, library accounts, grants and office bearers.",
+              "A grade estimate scores the library against thresholds kept in Settings and shows, per criterion, what the next grade needs.",
+              "Grants have a register; the vouchers paid from a grant are charged to it and the utilisation certificate prints with the certificate text for signature."]))
+    A(fig("d-council", "Library Council: the grade estimate with every criterion, the thresholds, what was attained this year and the shortfall to the next grade; the grants register below.", "desk"))
+    A(steps([("Settings first", "under Settings → Library Council affiliation enter the Council affiliation number, the grade the Council gave, district, taluk, working hours and the librarian; check the grade thresholds against the Council's current circular."),
+             ("Grade estimate", "each criterion (stock, members, books issued, periodicals, reading-room visits, programmes, books added) earns points by the grade band it reaches; the overall estimate follows the points. The right-hand column says what the next band needs."),
+             ("Annual statement", "the printable return for the year, in English or Malayalam, with signature lines for the librarian, secretary and president."),
+             ("Grants", "record a grant when it arrives: the receipt is booked under <i>Grant</i> for you. Open <i>Vouchers charged</i> to tick the payment vouchers spent from it."),
+             ("Utilisation certificate", "prints the grant, the vouchers charged, the unutilised balance and the certificate wording.")]))
+    A(fig("d-grant", "Charging vouchers to a grant: what is charged so far, and the year's payment vouchers waiting to be ticked.", "desk"))
+    A(fig("d-print-council", "The annual statement as it prints (Malayalam): stock, members, circulation by month, periodicals, programmes, accounts, grants, the grade table and office bearers.", "desk"))
+    A(fig("d-print-uc", "A grant utilisation certificate.", "small"))
+    A(tip("The thresholds shipped with the app are planning targets, not the Council's figures. Replace them in Settings with the numbers in the current circular; the screens and the printout both say the circular governs.", "warn"))
+    A(sticky("Keep the reading-room register and the periodicals register up to date through the year: two of the seven criteria come straight from them.", "yellow", "Librarian's tip"))
+    A(quest("Bonus mission · Affiliation", ["Enter the Council details and the current thresholds in Settings", "Record a grant and charge two vouchers to it", "Print the annual statement in Malayalam"], 30))
+    A(chapter(22, "Accounts, dues and payments", "Receipts, vouchers, UPI and online", "Part C · Office"))
     A(glance(["Every rupee in or out is a receipt or a voucher under a standard head (admission, subscription, donation, event fee, rent, salary…).", "Dues are computed from membership types and the subscription year; reminders go automatically.",
               "Members' UPI claims are confirmed by the treasurer; online payments through Razorpay settle themselves."]))
     A(fig("d-finance", "Accounts: the cash book with receipts and vouchers, filters by head and period, totals.", "desk"))
@@ -518,13 +536,34 @@ def build():
              ("Dues", "who owes what this year; send reminders to all or to one; record a payment straight from the row."),
              ("UPI claims", "members who paid by UPI and sent the UTR; check your bank app, then confirm (receipt issued) or reject (the member is told why)."),
              ("Online payments", "orders and settlements from Razorpay, with the receipt each produced."),
-             ("Reports", "the annual statement by head is in Reports → Annual report.")]))
+             ("Reports", "the annual statement by head is in Reports → Annual report; the auditor's statements are the next chapter.")]))
     A(fig("d-dues", "Dues: outstanding amounts by member, with reminders and quick recording.", "desk"))
     A(fig("d-claims", "UPI claims waiting for confirmation.", "small"))
     A(fig("d-online", "Online payments received through Razorpay.", "small"))
     A(tip("Receipts cannot be deleted, only reversed with a voucher, so the cash book always matches what was messaged to members.", "warn"))
     A(quest("Mission 9 · Money", ["Record a subscription receipt and find the message in the Outbox", "Send a dues reminder to one member", "Confirm a UPI claim"], 30))
-    A(chapter(22, "Facilities, assets and documents", "Halls, grounds, equipment, papers", "Part C · Office"))
+    A(chapter(23, "Statements, cash book and the year close", "Receipts & Payments, Income & Expenditure, Balance Sheet, Tally", "Part C · Office"))
+    A(glance(["Accounts → Statements turns the receipts and vouchers into the three statements an auditor and the society's annual return expect, for a financial year (April to March unless Settings say otherwise).",
+              "Every head has a <i>nature</i>: income and expense meet in Income & Expenditure; books, furniture and building are assets; deposits are liabilities; building fund and corpus are funds. The balance sheet balances by construction.",
+              "The treasurer closes an audited year: entries lock, closing balances carry forward. Tally XML exports the vouchers for an accountant."]))
+    A(fig("d-statements", "Statements for the year: opening and closing balances, surplus, the Receipts & Payments account, the Income & Expenditure account and the Balance Sheet, with the year's status.", "desk"))
+    A(steps([("Opening balances", "once, for the first year kept here: cash in hand, cash at bank, the value of the library books and any deposits or funds. Later years are carried forward by the year close and locked."),
+             ("Cash ⇄ bank", "record every deposit into the bank and every withdrawal as a contra entry from the Accounts screen; it moves money between the two books without touching income or expense."),
+             ("Cash book · Bank book", "every entry with a running balance from the opening; print either for the audit file."),
+             ("Statements", "the three statements for any year, provisional until the year is closed; <i>Print statements</i> gives the bilingual set with signature lines for treasurer, secretary, president and auditor."),
+             ("Close the year", "after the audit, from the Statements screen (treasurer or administrator). Reopen if the auditor asks for a change; close again afterwards."),
+             ("Tally XML", "the year's receipts, payments and contras with their ledger masters, importable into Tally.")]))
+    A(fig("d-openings", "Entering the opening balances for the first year.", "small"))
+    A(fig("d-contra", "A contra entry: cash deposited in the bank.", "small"))
+    A(fig("d-cashbook", "The cash book with a running balance.", "desk"))
+    A(fig("d-print-statements", "The printed set: Receipts and Payments, Income and Expenditure, Balance Sheet.", "desk"))
+    A(fig("d-settings-accounts", "Settings → Accounts & financial year: the start month and the club's extra heads with their nature.", "desk"))
+    A(table(["Nature", "Where it lands", "Examples"], [["Income", "Income & Expenditure (credit)", "subscription, admission, donation, fine, bank interest"], ["Expense", "Income & Expenditure (debit)", "rent, electricity, salary, printing, newspapers"],
+             ["Asset", "Balance sheet: payments add to it", "books, furniture, building, fixed deposit"], ["Liability", "Balance sheet: received adds, refunded reduces", "library deposits"], ["Fund", "Balance sheet: a fund with its own balance", "building fund, corpus, sinking fund"]]))
+    A(tip("Receipts and vouchers dated in a closed year are refused, and so are voids. That is the point: once the auditor has signed, the books do not move. Reopen the year to correct, then close it again.", "warn"))
+    A(dyk("The balance sheet cannot fail to balance: the general fund is computed from the opening assets and liabilities and moves only by the year's surplus or deficit. If a figure looks wrong, the entry is wrong, not the arithmetic."))
+    A(quest("Bonus mission · The audit file", ["Enter opening balances and record a contra entry", "Print the three statements and the cash book", "Close last year, then reopen it"], 30))
+    A(chapter(24, "Facilities, assets and documents", "Halls, grounds, equipment, papers", "Part C · Office"))
     A(fig("d-bookings", "Hall &amp; ground booking: the calendar, requests to confirm, rates per facility.", "desk"))
     A(fig("d-facility-form", "Adding a facility with its rate and rules.", "small"))
     A(steps([("Facilities", "add the hall, ground, stage, sound system… with a rate (per hour or per day) and whether members may request online."),
@@ -534,7 +573,7 @@ def build():
     A(fig("d-assets", "Assets and lending.", "small"))
     A(fig("d-documents", "Documents with audience control.", "small"))
     A(fig("d-document-form", "Adding a document.", "small"))
-    A(chapter(23, "Broadcasts and the outbox", "Reach everyone, see what was delivered", "Part C · Office"))
+    A(chapter(25, "Broadcasts and the outbox", "Reach everyone, see what was delivered", "Part C · Office"))
     A(glance(["A broadcast is a message to an audience on the channels you pick, now or at a scheduled time.", "The outbox shows every message, its channel and delivery status; failed ones can be retried.",
               "Blood donor request finds members and family members by blood group."]))
     A(msg_svg())
@@ -547,25 +586,25 @@ def build():
     A(tip("SMS in Malayalam counts 70 characters per segment, so the automatic SMS texts are short; WhatsApp and e-mail carry the full text.", "note"))
     A(aside(dyk("The outbox retries a failed message three times before marking it failed, and shows the provider's own error text so you can see whether a number was wrong or a template was rejected."),
             sticky("Schedule the Sunday broadcast on Saturday night. The Outbox shows it as scheduled and you can still cancel it in the morning.", "pink", "Scheduling")))
-    A(chapter(24, "Polls and elections", "One member, one vote", "Part C · Office"))
+    A(chapter(26, "Polls and elections", "One member, one vote", "Part C · Office"))
     A(fig("d-polls", "Polls &amp; elections for the office: open, closed, results.", "desk"))
     A(fig("d-poll-form", "Creating a poll: question, options (or candidates), who may vote, secret or open, closing time.", "desk"))
     A(steps([("New poll", "a question with options, or an election with posts and candidates; choose the electorate (all members, a type, a committee)."),
              ("Secret ballot", "records that a member voted, never what they chose."), ("Open", "members are notified; the poll appears under Polls &amp; elections."),
              ("Close", "automatically at the closing time; results are published and notified.")]))
-    A(chapter(25, "Scan QR at the door", "Meetings, events, reading room", "Part C · Office"))
+    A(chapter(27, "Scan QR at the door", "Meetings, events, reading room", "Part C · Office"))
     A(fig("d-scan", "Scan QR: point the laptop or phone camera at a member's e-card; the member is identified and marked present, registered or signed in to the reading room.", "desk"))
     A(tip("On a phone, Scan QR uses the back camera; the office bearer's phone becomes the attendance desk.", "tip"))
-    A(chapter(26, "Reports, annual report, audit and backups", "Numbers for the general body", "Part C · Office"))
+    A(chapter(28, "Reports, annual report, audit and backups", "Numbers for the general body", "Part C · Office"))
     A(fig("d-reports", "Reports: members by type, ward, gender, blood group, age band and joining year; events; library; accounts.", "desk"))
     A(fig("d-annual", "The annual report for the general body: office bearers, membership, events, meetings and resolutions, accounts by head, library; printable.", "desk"))
     A(fig("d-audit", "The audit log: who did what and when.", "desk"))
     A(steps([("Annual report", "pick the year; print or save as PDF for the general body."), ("Audit", "every approval, publication, receipt, settings change and sign-in, with the user and time."),
              ("Backups", "Settings → Backups shows the nightly copies and lets you take one now; with Google Drive configured, copies go off-site.")]))
-    A(chapter(27, "The public website and the in-app handbook", "What the world sees", "Part C · Office"))
+    A(chapter(29, "The public website and the in-app handbook", "What the world sees", "Part C · Office"))
     A(fig("d-site", "The club's public website at /site: about, office bearers with photos, upcoming events, news, documents, photos, contact and social links; in both languages; shareable.", "desk"))
     A(fig("d-help", "The in-app handbook at /help: the short bilingual guide members and office bearers can open from the menu.", "desk"))
-    A(chapter(28, "Your ClubPro subscription", "What the club pays, and what happens if it does not", "Part C · Office"))
+    A(chapter(30, "Your ClubPro subscription", "What the club pays, and what happens if it does not", "Part C · Office"))
     A(glance(["Office → Subscription plan shows the status, the end date, the active members and next year's price.", "Pay online (card / UPI) or by UPI with the transaction reference; the operator confirms it.",
               "After the end date there are 15 days of grace; then the club becomes read-only until paid. Nothing is deleted."]))
     A(lifecycle_svg())
@@ -580,10 +619,10 @@ def build():
     # ================= PART D =================
     A(part_opener("D", "Operator's guide", "For Team Bpro or anyone running ClubPro as a service: the server, the console, pricing, billing and channels.",
                   ["One server, many clubs, each isolated", "Clubs sign up by themselves and pay yearly", "Operator keys, channels and backups"]))
-    A(chapter(29, "How the platform is built", "One server, many clubs", "Part D · Operator"))
+    A(chapter(31, "How the platform is built", "One server, many clubs", "Part D · Operator"))
     A(arch_svg())
     A("""<p>ClubPro is a single Python application (FastAPI) with one SQLite database per club, a browser app that installs on phones, and background workers for messages, daily jobs and backups. Caddy in front provides HTTPS for every club's domain automatically. The first club on a server is the <i>default</i> club and lives directly in the data folder; every further club lives under <code>data/tenants/&lt;slug&gt;/</code>. The visitor's domain picks the club; the operator's own pages (<code>/signup</code>, <code>/pricing</code>, <code>/_platform</code>) answer on any domain.</p>""")
-    A(chapter(30, "Installing on a server", "A VPS, a domain, fifteen minutes", "Part D · Operator"))
+    A(chapter(32, "Installing on a server", "A VPS, a domain, fifteen minutes", "Part D · Operator"))
     A(steps([("Get a VPS", "Ubuntu or Debian, 1 vCPU / 2 GB is enough for dozens of clubs. Shared web hosting cannot run it (it is Python, not PHP)."),
              ("Point DNS", "an A record for the platform domain (e.g. clubpro.in) and a wildcard record (*.clubpro.in) at the server; clubs with their own domains point theirs the same way."),
              ("Run the installer", "<code>curl -fsSL https://raw.githubusercontent.com/BABUKOLLAM/bpro-club-manager/main/deploy/vps-install.sh | sudo bash -s -- clubpro.in admin@teambpro.in</code> installs Docker and Caddy, clones the app to /opt/club, writes .env and starts everything."),
@@ -592,7 +631,7 @@ def build():
              ("Open the console", "https://clubpro.in/_platform with the master key: set the product name, the footer credit, pricing, your UPI ID and support contact.")]))
     A(tip("Re-running the installer command updates the app in place. Data, uploads and .env are kept.", "tip"))
     A(sticky("Keep .env out of git and out of WhatsApp. It holds every key. Back it up with the server, nowhere else.", "", "Operator's rule"))
-    A(chapter(31, "The platform console", "Every club, every rupee", "Part D · Operator"))
+    A(chapter(33, "The platform console", "Every club, every rupee", "Part D · Operator"))
     A(pins("d-platform", [(20, 6, "Master key", "Open the console with CLUB_MASTER_KEY from .env."), (50, 11, "Summary", "Clubs by status, run-rate, collected, claims to confirm."), (65, 19, "Per club", "Mark paid, extend trial, suspend / reopen, confirm claims.", "l"),
                           (50, 33, "Clubs", "Sizes, domains, last backup, deactivate."), (50, 48, "Add a club", "For clubs you onboard yourself."), (50, 62, "Routing · pricing", "Default club's domains, product name, powered-by, prices, UPI, support.")],
            "The console: subscriptions summary, per-club status and actions, the club list, add a club, routing, pricing and the operator's UPI and support contact."))
@@ -602,23 +641,23 @@ def build():
              ("Add a club", "for clubs you onboard yourself: slug, names, domains, first administrator."),
              ("Routing", "the default club's domains; whether unknown host names show the default club or <i>no club at this address</i>."),
              ("Pricing", "flat price and member limit, per-member price, trial and grace days, UPI ID and payee name, support contact.")]))
-    A(chapter(32, "Clubs signing up by themselves", "/signup and /pricing", "Part D · Operator"))
+    A(chapter(34, "Clubs signing up by themselves", "/signup and /pricing", "Part D · Operator"))
     A(fig("d-pricing", "The pricing page: the rule, the trial, and every service in both languages.", "desk"))
     A(fig("m-signup", "The signup form on a phone: club, web address, secretary, mobile, password, consent.", "phone"))
     A(flow([("Fill the form", "/signup"), ("Code by SMS", "operator's channel"), ("Club created", "<slug>.clubpro.in"), ("Trial", "30 days"), ("Pays", "online or UPI")], accent=True))
     A(tip("Signup codes go through the server's SMS or WhatsApp channel. If none is configured the club is created without a code — fine for a trial server, not for the public.", "warn"))
     A(dyk("A club that signs up at /signup is live in under a minute: its database is created, the first administrator is set, the default committees are seeded and the trial clock starts."))
-    A(chapter(33, "Billing, reminders and suspension", "Trial → active → due → read-only", "Part D · Operator"))
+    A(chapter(35, "Billing, reminders and suspension", "Trial → active → due → read-only", "Part D · Operator"))
     A(lifecycle_svg())
     A(steps([("Online", "the club pays through your Razorpay account from its Subscription plan screen; the plan is extended by a year at once; the webhook is the safety net if the browser closes."),
              ("UPI", "the club pays to your UPI ID and sends the reference; it appears as a claim on the console; confirm after checking your bank."),
              ("Manual", "Mark paid for cash, cheque or bank transfer."),
              ("Reminders", "the daily job messages the club's office bearers 7 days before the end, when payment is due, and when the club becomes read-only."),
              ("Read-only", "sign-in, reading and paying keep working; every other change is refused with a clear message; nothing is deleted. Reopen from the console if needed.")]))
-    A(chapter(34, "White label per club", "Their name, your product", "Part D · Operator"))
+    A(chapter(36, "White label per club", "Their name, your product", "Part D · Operator"))
     A("""<p>Each club sets its own logo, colours, app name and footer under Settings → Branding (chapter 16). The platform's product name and the "Powered by" footer that new clubs start with are set on the console. A club may also enter its own WhatsApp, SMS, SMTP and Razorpay accounts; blank fields inherit the server's. Secrets are stored per club and shown masked.</p>""")
     A(fig("d-settings-brand", "Branding settings as a club sees them.", "desk"))
-    A(chapter(35, "Message channels and payment gateways", "What to set up where", "Part D · Operator"))
+    A(chapter(37, "Message channels and payment gateways", "What to set up where", "Part D · Operator"))
     A(table(["Channel", "Provider", "Set up", "Notes"],
             [["WhatsApp", "Meta WhatsApp Cloud API", "a Meta business app, a phone number ID and a permanent system-user token; an approved message template with one {{1}} parameter", "needed to message members outside the 24-hour window; template approval takes a day or two"],
              ["SMS", "any HTTP gateway (Fast2SMS, Textlocal, MSG91…)", "the gateway URL with placeholders {to} {text} {sender} {dlt} {key}; a DLT-registered template", "Malayalam SMS is 70 characters per segment"],
@@ -626,7 +665,7 @@ def build():
              ["Push", "built in", "nothing", "free; the app must be served over HTTPS"],
              ["Members' online payment", "Razorpay (club's account)", "key ID, secret, webhook secret; webhook URL /api/payments/razorpay/webhook", "per club under Settings or in the server's .env"],
              ["Subscription payment", "Razorpay (operator's account)", "CLUBPRO_RZP_KEY_ID / SECRET / WEBHOOK_SECRET; webhook URL /api/saas/webhook", "operator only"]]))
-    A(chapter(36, "Backups and safety", "Sleep well", "Part D · Operator"))
+    A(chapter(38, "Backups and safety", "Sleep well", "Part D · Operator"))
     A(steps([("Nightly backups", "every club's database and uploads are copied each night; the console shows the last backup per club."),
              ("Google Drive", "a service account and a shared folder push copies off the server; retention is per club."),
              ("Protections", "HttpOnly cookies, a header on every change (no cross-site actions), scrypt passwords, one-time codes that expire, rate limits on public endpoints, re-encoded uploads, security headers and a content policy on every page."),
@@ -637,41 +676,109 @@ def build():
     A(close())
 
     # ================= PART E =================
-    A(part_opener("E", "Reference", "Tables to look things up: permissions, formats, messages, settings, words.", ["Permissions matrix", "Numbering and message templates", "Glossary and FAQ"]))
-    A(chapter(37, "Permissions matrix", "", "Part E · Reference"))
+    # ================= PART E =================
+    A(part_opener("E", "Residents' associations", "The same app runs a flat owners' or residents' welfare association: switch the mode and three modules appear.",
+                  ["Units, blocks and residents as owner, tenant or family", "Maintenance billed per unit, settled oldest first, chased automatically", "A complaints helpdesk the office works and the resident watches"]))
+    A(chapter(39, "Switching on association mode", "Residents, units, blocks; the library steps aside", "Part E · Association"))
+    A(glance(["Settings → <i>This organisation is a…</i> → flat owners' / residents' association. The wording changes to residents, units and blocks in both languages, the library hides, and the units register, maintenance billing and the helpdesk switch on.",
+              "Each module can be toggled on its own, so a club with flats can bill maintenance and keep its library.",
+              "Everything else is unchanged: committees and minutes, AGM polls and elections, notices, documents, hall booking, accounts and the year close, backups and the website."]))
+    A(fig("d-assoc-settings", "The organisation card in Settings: the kind, the modules, and the maintenance rule (basis, rate, period, due day, late fee, unit types, rates by type).", "desk"))
+    A(steps([("Choose the kind", "and save. The menu, the registration form and the dashboard change at once."),
+             ("Blocks", "the <i>Blocks / towers</i> list (the wards list in club mode) feeds the block selectors everywhere."),
+             ("Unit types", "1BHK, 2BHK, 3BHK, Villa, Shop… edit freely; they drive the per-type maintenance rule."),
+             ("Maintenance rule", "a flat amount per unit, an amount per square foot, or an amount by unit type; monthly or quarterly; the due day; a late fee charged once after it."),
+             ("Resident categories", "the membership types list becomes resident categories (owner member, tenant…) with their admission and annual amounts, if the association collects any.")]))
+    A(fig("d-assoc-home", "The dashboard in association mode: residents, units, vacant units, maintenance due and open complaints.", "desk"))
+    A(sticky("Keep club mode for an arts & sports club that happens to own flats; switch on only <i>Units</i> and <i>Maintenance billing</i> under Modules.", "blue", "Mixed clubs"))
+    A(chapter(40, "Units and residents", "The register the association is built on", "Part E · Association"))
+    A(glance(["A unit is a flat, villa or shop: block, number, floor, type, area, parking, owner on record.", "Residents attach to a unit as owner, tenant or family member; one unit, many residents; a resident has one unit.",
+              "A resident who registers from the front page names the block and unit; a unit the office has not entered yet is created on the spot."]))
+    A(fig("d-units", "Units: the register with type and area, residents, status and maintenance due per unit.", "desk"))
+    A(fig("d-units-bulk", "Adding a whole building in one go: one line per unit, block, number, floor, type, area.", "small"))
+    A(fig("d-assign-resident", "Attaching a resident to a unit as owner, tenant or family.", "small"))
+    A(fig("d-unit", "A unit: residents, owner on record, maintenance bills with their status, receipts, complaints, and the printable statement of account.", "desk"))
+    A(steps([("Bulk entry", "Units → <i>Add units in bulk</i>: paste the list from the builder's schedule; only the unit number is required."),
+             ("Residents", "open the unit and <i>Assign resident</i>, or set the unit on the resident's page (office edit); residents can also arrive through self-registration."),
+             ("Vacant and inactive", "mark a unit vacant to keep it visible and billed, inactive to drop it from billing."),
+             ("Fixed maintenance", "a unit that pays a negotiated amount gets it as <i>Fixed maintenance for this unit</i>; the rule is ignored for that unit."),
+             ("Statement", "the unit's bills and receipts with the balance, printable for the owner or a buyer's NOC.")]))
+    A(fig("d-residents", "The residents register: the unit and occupancy appear under each name; filter by block.", "desk"))
+    A(chapter(41, "Maintenance billing", "Bills per unit, oldest settled first, reminders to the unit", "Part E · Association"))
+    A(glance(["Accounts → Maintenance: generate the period's bills for every active unit on the rule; a unit with no area or rate gets none and the screen says so.",
+              "A receipt under <i>Maintenance charges</i> settles the unit's bills oldest first; a part payment stays as a part payment on the oldest bill; voiding a receipt reopens what it had settled.",
+              "After the due day the late fee is added once by the daily job. Defaulters are listed by unit with calls, WhatsApp and reminders to every resident of the unit."]))
+    A(fig("d-maintenance", "Maintenance for a period: billed, paid and outstanding, every unit with its balance and status, and the generate and remind buttons.", "desk"))
+    A(fig("d-generate-bills", "Generating the bills for a period (YYYY-MM, or YYYY-Q1 for quarterly billing).", "small"))
+    A(fig("d-maint-due", "Maintenance due: units with outstanding bills, how many periods, the oldest, and quick contact.", "desk"))
+    A(steps([("Generate", "once per period; running it again creates nothing twice. New units get their bill the next time."),
+             ("Collect", "record the receipt from the unit page (<i>+ New receipt</i>, head and unit filled in) or from Accounts with the resident selected; the resident gets the receipt by WhatsApp."),
+             ("Online", "residents pay by UPI with the transaction number, or online through Razorpay, from <i>My payments</i>; the receipt settles the bills the same way."),
+             ("Adjust", "the … button on a bill edits the amount or late fee, adds a note, or waives the bill (a vacant month, a dispute settled)."),
+             ("Remind", "<i>Send reminders</i> messages every resident of every unit in arrears with the amount and the number of periods."),
+             ("Statements", "maintenance is income in the year's statements; sinking fund contributions are a fund on the balance sheet.")]))
+    A(tip("Bill in advance: generate the month's bills on the first, so the due day and the late fee mean what the bye-laws say.", "tip"))
+    A(quest("Mission 12 · Maintenance", ["Add three units in bulk and attach a resident to one", "Generate this month's bills and record a part payment", "Open the defaulters tab and send reminders"], 30))
+    A(chapter(42, "Complaints and the helpdesk", "From a leaking tap to a closed ticket", "Part E · Association"))
+    A(glance(["Residents raise complaints with a category, priority and photo; the office is told at once in the app.", "The office assigns a person, moves the status (open → in progress → on hold → resolved), adds notes; the resident is messaged on every change.",
+              "The resident closes the complaint when satisfied, or the office does. Everything stays on the unit's page."]))
+    A(fig("d-helpdesk", "The helpdesk for the office: open complaints first, urgent ones on top, counts by status.", "desk"))
+    A(fig("d-ticket", "A complaint: details and photo, who raised it and from which unit, the assignee, and the notes timeline.", "desk"))
+    A(fig("d-ticket-assign", "Assigning, re-prioritising and updating the status with a note.", "small"))
+    A(steps([("Raise", "a resident taps <i>Raise a complaint</i>; the office can raise one on a resident's behalf (a call to the office, a note at the gate)."),
+             ("Work", "<i>Assigned to</i> picks the secretary, the caretaker's login or any office bearer; <i>Mark resolved</i> when the job is done; notes keep the history."),
+             ("Close", "the resident closes a resolved complaint, or reopens it from the same page if the problem returns."),
+             ("Report", "the dashboard counts open complaints; the unit page lists the unit's history.")]))
+    A(sticky("Give the caretaker or facility manager a <i>Secretary</i> login limited to the helpdesk by habit, or create a committee convener for the maintenance committee.", "pink", "Who works tickets"))
+    A(chapter(43, "A resident's phone", "Register, see the bills, pay, complain", "Part E · Association"))
+    A(fig(["m-assoc-apply", "m-assoc-home", "m-assoc-payments"], "Registration asks for block, unit and occupancy; home shows maintenance due and open complaints; My payments lists the unit's bills with UPI and online payment and the printable statement.", "phones"))
+    A(fig(["m-assoc-helpdesk", "m-assoc-ticket-form", "m-assoc-ticket"], "Complaints on the phone: the list, raising one with a photo, and a complaint with its notes.", "phones"))
+    A(steps([("Register", "front page → <i>Register as a resident</i>; the office approves and the resident number arrives by WhatsApp."),
+             ("Bills", "<i>My payments</i> → the unit's bills with their status; <i>Statement</i> prints the account."),
+             ("Pay", "<i>Pay by UPI</i> (QR and the transaction number) or <i>Pay online</i>; the receipt arrives by WhatsApp and the bill turns paid."),
+             ("Complain", "<i>Complaints & helpdesk</i> → <i>Raise a complaint</i>; every update is a notification; close it when done.")]))
+    A(quest("Mission 13 · As a resident", ["Register a resident against a unit and approve them", "Pay a maintenance bill by UPI claim and confirm it as treasurer", "Raise a complaint on the phone and close it after the office resolves it"], 30))
+    A(badges([("🏢", "Association ready", "blue"), ("🧾", "Maintenance collected", "green"), ("🛠️", "Helpdesk master", "orange")]))
+    A(part_opener("F", "Reference", "Tables to look things up: permissions, formats, messages, settings, words.", ["Permissions matrix", "Numbering and message templates", "Glossary and FAQ"]))
+    A(chapter(44, "Permissions matrix", "", "Part F · Reference"))
     perms = [("members.view", "see the register", "A P S T L"), ("members.manage", "approve, edit, import", "A P S"), ("posts.manage", "publish news and events", "A P S"), ("broadcast.send", "broadcasts", "A P S"),
              ("committees.manage", "committees", "A P S"), ("meetings.manage", "meetings and minutes", "A P S"), ("library.manage", "the library desk", "A S L"), ("finance.view", "see accounts", "A P S T"),
              ("finance.manage", "record receipts and vouchers, confirm claims", "A S T"), ("reports.view", "reports and the annual report", "A P S T L"), ("outbox.view", "the outbox", "A P S"),
+             ("finance.close", "close and reopen a financial year", "A T"), ("helpdesk.manage", "assign, update and close complaints", "A P S"),
              ("users.manage", "office bearers' logins", "A S"), ("settings.manage", "settings, backups, subscription", "A")]
     A(table(["Permission", "Allows", "Admin", "President", "Secretary", "Treasurer", "Librarian"],
             [[f"<code>{p}</code>", d, *["●" if k in r.split() else "" for k in "A P S T L".split()]] for p, d, r in perms], "matrix"))
     A("<p class='small'>A committee convener (convener, secretary or chair of a committee) can also schedule that committee's meetings, mark attendance and write and publish its minutes.</p>")
-    A(chapter(38, "Numbering formats", "", "Part E · Reference"))
+    A(chapter(45, "Numbering formats", "", "Part F · Reference"))
     A(table(["Placeholder", "Means", "Example"], [["{prefix}", "the short name from Settings", "KASC"], ["{year}", "four-digit year", "2026"], ["{yy}", "two-digit year", "26"], ["{seq:04d}", "running number, zero-padded to 4", "0042"], ["{seq}", "running number", "42"]]))
     A("<p>Defaults: membership <code>{prefix}/{year}/{seq:04d}</code>, receipt <code>R/{year}/{seq:04d}</code>, voucher <code>V/{year}/{seq:04d}</code>, accession <code>{seq:05d}</code>. The sequence can restart every year.</p>")
-    A(chapter(39, "Automatic messages", "What the app sends on its own", "Part E · Reference"))
+    A(chapter(46, "Automatic messages", "What the app sends on its own", "Part F · Reference"))
     msgs = [("application_received", "to the applicant when the form is sent"), ("application_approved / rejected", "the number and sign-in, or the reason"), ("news / event", "on publish, to the audience"),
             ("event_reminder", "the day before an event the member registered for"), ("registration_confirmed", "on registering"), ("results", "when results are published"),
             ("meeting_notice / mom_published / action_assigned", "committee notices, minutes, action items"), ("book_issued / book_due / book_overdue / reservation_ready", "the library"),
             ("receipt / subscription_due / payment_claimed / payment_rejected / payment_success", "accounts"), ("booking_confirmed / booking_cancelled / asset_due", "facilities and assets"),
             ("blood_request", "to donors of a blood group"), ("poll_open / poll_results", "polls"), ("birthday", "on the member's birthday"), ("password_reset", "the one-time code"),
-            ("saas_ending / saas_overdue / saas_suspended", "to office bearers about the club's subscription")]
+            ("saas_ending / saas_overdue / saas_suspended", "to office bearers about the club's subscription"),
+            ("maintenance_due", "to every resident of a unit in arrears, on <i>Send reminders</i>"), ("ticket_created / ticket_update", "to the resident when a complaint is registered and on every change")]
     A(table(["Template", "When"], [[f"<code>{t}</code>", w] for t, w in msgs]))
     A("<p class='small'>Every template exists in English and Malayalam in <code>app/i18n.py</code>; the member's language decides.</p>")
-    A(chapter(40, "Environment variables", "The server's .env", "Part E · Reference"))
+    A(chapter(47, "Environment variables", "The server's .env", "Part F · Reference"))
     env = [("CLUB_ADMIN_LOGIN / PASSWORD / NAME", "the first administrator, created when the database is empty"), ("CLUB_PUBLIC_URL", "the address used in message links (single club)"), ("CLUB_DATA", "where databases and uploads live"),
            ("CLUB_WA_TOKEN / PHONE_ID / TEMPLATE / TEMPLATE_LANG", "WhatsApp Cloud API"), ("CLUB_SMS_URL / BODY / HEADERS / KEY / SENDER / DLT_TEMPLATE", "SMS gateway"), ("CLUB_SMTP_HOST / PORT / USER / PASS / FROM", "e-mail"),
            ("CLUB_RZP_KEY_ID / KEY_SECRET / WEBHOOK_SECRET", "members' online payments (default for clubs)"), ("CLUB_GDRIVE_SA_JSON / FOLDER, CLUB_BACKUP_HOUR / DIR", "backups"), ("CLUB_DAILY_HOUR", "when the daily jobs run"),
            ("CLUB_MASTER_KEY", "enables the platform console"), ("CLUB_BASE_DOMAIN", "clubs are reachable at <slug>.<base domain>"), ("CLUBPRO_RZP_KEY_ID / KEY_SECRET / WEBHOOK_SECRET", "the operator's Razorpay account for subscriptions")]
     A(table(["Variable", "Purpose"], [[f"<code>{v}</code>", p] for v, p in env]))
-    A(chapter(41, "Glossary English · Malayalam", "", "Part E · Reference"))
+    A(chapter(48, "Glossary English · Malayalam", "", "Part F · Reference"))
     gl = [("Member · Membership number", "അംഗം · അംഗത്വ നമ്പർ"), ("Application · Approve · Reject", "അപേക്ഷ · അംഗീകരിക്കുക · നിരസിക്കുക"), ("E-card", "ഇ-കാർഡ്"), ("Family", "കുടുംബം"), ("Blood group", "രക്തഗ്രൂപ്പ്"),
           ("News · Event · Camp · Competition", "വാർത്ത · പരിപാടി · ക്യാമ്പ് · മത്സരം"), ("Register (for an event)", "രജിസ്റ്റർ ചെയ്യുക"), ("Committee · Meeting · Agenda · Minutes", "കമ്മിറ്റി · യോഗം · അജണ്ട · മിനിറ്റ്സ്"),
           ("Resolution · Action item · Plan", "പ്രമേയം · നടപടി · പദ്ധതി"), ("Library · Issue · Return · Renew · Reserve", "ലൈബ്രറി · ഇഷ്യൂ · തിരികെ · പുതുക്കുക · റിസർവ്"), ("Reading room · Periodicals", "വായനശാല · ആനുകാലികങ്ങൾ"),
           ("Subscription · Dues · Receipt · Voucher", "വരിസംഖ്യ · കുടിശ്ശിക · രസീത് · വൗച്ചർ"), ("Donation", "സംഭാവന"), ("Hall booking · Facility", "ഹാൾ ബുക്കിംഗ് · സൗകര്യം"), ("Broadcast · Outbox", "ബ്രോഡ്കാസ്റ്റ് · ഔട്ട്ബോക്സ്"),
           ("Poll · Election · Ballot", "വോട്ടെടുപ്പ് · തിരഞ്ഞെടുപ്പ് · ബാലറ്റ്"), ("Settings · Users · Audit", "ക്രമീകരണങ്ങൾ · ഉപയോക്താക്കൾ · ഓഡിറ്റ്"), ("Subscription plan (ClubPro)", "സബ്സ്ക്രിപ്ഷൻ പ്ലാൻ"), ("Read-only", "വായിക്കാൻ മാത്രം")]
+    gl += [("Receipts & Payments · Income & Expenditure · Balance sheet", "വരവ് ചെലവ് കണക്ക് · വരുമാന ചെലവ് കണക്ക് · ബാലൻസ് ഷീറ്റ്"), ("Opening balance · Closing balance · Year close", "ആരംഭ ബാക്കി · അവസാന ബാക്കി · വർഷം അടയ്ക്കൽ"),
+           ("Grant · Utilisation certificate", "ഗ്രാന്റ് · വിനിയോഗ സാക്ഷ്യപത്രം"), ("Unit · Block · Resident · Owner · Tenant", "യൂണിറ്റ് · ബ്ലോക്ക് · താമസക്കാരൻ · ഉടമ · വാടകക്കാരൻ"),
+           ("Maintenance · Late fee · Complaint", "മെയിന്റനൻസ് · പിഴ · പരാതി")]
     A(table(["English", "മലയാളം"], [[a, f"<span class='ml'>{b}</span>"] for a, b in gl]))
-    A(chapter(42, "Frequently asked questions", "", "Part E · Reference"))
+    A(chapter(49, "Frequently asked questions", "", "Part F · Reference"))
     faq = [("A member changed their phone number. How do they sign in?", "The office edits the phone on the member's page (Office → Members). The new number is the login from then on; set a password for them if needed."),
            ("Messages show as <i>demo</i> in the outbox.", "No channel is configured yet. Enter the club's own WhatsApp / SMS / e-mail account under Settings → Communication, or ask the operator to configure the server's. In-app notifications work regardless."),
            ("Can two clubs share one phone number for WhatsApp?", "Yes: leave the club's WhatsApp fields blank and the server's number is used. A club that enters its own number uses that instead."),
@@ -680,6 +787,8 @@ def build():
            ("What if we stop paying ClubPro?", "After the end date and 15 days of grace the club becomes read-only: everyone can still sign in, read and export; nothing is deleted. Paying reopens it at once."),
            ("Is our data safe?", "Each club has its own database on the server with nightly backups, optionally copied to Google Drive. Passwords are hashed; every change is logged; uploads are re-encoded; public endpoints are rate-limited."),
            ("Can we use our own domain?", "Yes: point the domain at the server and add it on the platform console (or ask the operator). The certificate is issued automatically on the first visit."),
+           ("Can a residents' association use ClubPro?", "Yes. Settings → <i>This organisation is a…</i> → association. Part E covers units, maintenance billing and the helpdesk; everything else works as for a club."),
+           ("Our auditor wants Receipts & Payments and a Balance Sheet.", "Accounts → Statements, for any financial year, printable with signature lines; enter opening balances once and close the year after the audit (chapter 23)."),
            ("How do we get help?", "The support contact set by the operator appears under Subscription plan and in reminder messages. The short in-app handbook is under Help in the menu.")]
     A("<dl class='faq'>" + "".join(f"<dt>{q}</dt><dd>{a}</dd>" for q, a in faq) + "</dl>")
     A(close())
@@ -700,7 +809,7 @@ def _standalone(body):
 <link rel="stylesheet" href="handbook.css"><style>@page{{size:A4;margin:0}}body{{margin:0}}</style></head><body>{body}</body></html>"""
 
 
-COVER_PARTS = [("A", "Welcome", "How to read this book"), ("B", "Members", "Join, pay, borrow, vote"), ("C", "Office bearers", "Run the club from a laptop"), ("D", "Operator", "Console, pricing, billing"), ("E", "Reference", "Permissions, formats, glossary")]
+COVER_PARTS = [("A", "Welcome", "How to read this book"), ("B", "Members", "Join, pay, borrow, vote"), ("C", "Office bearers", "Run the club from a laptop"), ("D", "Operator", "Console, pricing, billing"), ("E", "Associations", "Units, maintenance, complaints"), ("F", "Reference", "Permissions, formats, glossary")]
 
 
 def cover_html():
@@ -710,7 +819,7 @@ def cover_html():
   <div class='title'><div class='kicker'>ClubPro</div><h1>User Manual<br>&amp; Handbook</h1>
     <p class='lead'>Membership · Library &amp; reading room · Events &amp; competitions · Committees &amp; minutes · Accounts &amp; dues · WhatsApp, SMS and e-mail</p>
     <p class='lead2'>For members, office bearers and the club's operator. English, with every screen also in Malayalam.</p>
-    <div class='stickers'><span class='sticker'>90 screenshots</span><span class='sticker b'>42 chapters · 5 levels</span><span class='sticker c'>ഇംഗ്ലീഷ് · മലയാളം</span></div></div>
+    <div class='stickers'><span class='sticker'>120 screenshots</span><span class='sticker b'>49 chapters · 6 levels</span><span class='sticker c'>ഇംഗ്ലീഷ് · മലയാളം</span></div></div>
   <div class='shots'><img class='c1' src='{IMG}/d-dashboard.jpg' alt=''><img class='c2' src='{IMG}/m-me.jpg' alt=''></div>
   <div class='cparts'>{''.join(f"<div class='cp'><div class='l' style='background:linear-gradient(135deg,{PART_COLOURS[k][0]},{PART_COLOURS[k][1]})'>{k}</div><div><b>{n}</b><span>{d}</span></div></div>" for k, n, d in COVER_PARTS)}</div>
   <div class='band'><div class='credit'><b>Designed &amp; Developed by {CREDIT_NAME}</b><span>{CREDIT_QUALS}</span><span>{CREDIT_ORG}</span><span class='sites'>{' | '.join(CREDIT_SITES[:2])}</span><span class='sites'>{' | '.join(CREDIT_SITES[2:])}</span></div>
@@ -726,7 +835,7 @@ def back_html():
 
 
 # ---------- second pass: page numbers for the contents; frame and barcodes on every page ----------
-PART_COLOURS = {"A": ("#4F46E5", "#06B6D4"), "B": ("#06B6D4", "#0D9488"), "C": ("#F97316", "#EC4899"), "D": ("#7C3AED", "#EC4899"), "E": ("#84CC16", "#0D9488")}
+PART_COLOURS = {"A": ("#4F46E5", "#06B6D4"), "B": ("#06B6D4", "#0D9488"), "C": ("#F97316", "#EC4899"), "D": ("#7C3AED", "#EC4899"), "E": ("#0EA5E9", "#6366F1"), "F": ("#84CC16", "#0D9488")}
 
 
 def page_parts(pdf_path):
@@ -738,12 +847,12 @@ def page_parts(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             text = page.extract_text() or ""
-            m = _re.search(r"PART ([A-E]) ·", text)
+            m = _re.search(r"PART ([A-F]) ·", text)
             opener = bool(_re.search(r"Level [0-9★] ·", text)) and "Chapter" not in text
             if m:
                 part = m.group(1)
             elif opener:
-                pm = _re.search(r"Part ([A-E])\b", text)
+                pm = _re.search(r"Part ([A-F])\b", text)
                 if pm:
                     part = pm.group(1)
             out.append((part, opener))
