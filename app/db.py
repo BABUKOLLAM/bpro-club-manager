@@ -151,6 +151,13 @@ CREATE TABLE IF NOT EXISTS transactions(id INTEGER PRIMARY KEY, kind TEXT NOT NU
   note TEXT NOT NULL DEFAULT '', year INTEGER, created_by INTEGER, created REAL NOT NULL, void INTEGER NOT NULL DEFAULT 0, void_note TEXT NOT NULL DEFAULT '', notified_at REAL);
 CREATE INDEX IF NOT EXISTS ix_tx_date ON transactions(tx_date, kind);
 CREATE INDEX IF NOT EXISTS ix_tx_member ON transactions(member_id);
+CREATE TABLE IF NOT EXISTS fy_years(fy TEXT PRIMARY KEY, start_on TEXT NOT NULL, end_on TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', closed_at REAL, closed_by INTEGER,
+  summary TEXT NOT NULL DEFAULT '{}', note TEXT NOT NULL DEFAULT '');
+CREATE TABLE IF NOT EXISTS fy_openings(fy TEXT NOT NULL, item TEXT NOT NULL, amount REAL NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT '', label_en TEXT NOT NULL DEFAULT '',
+  label_ml TEXT NOT NULL DEFAULT '', derived INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(fy, item));
+CREATE TABLE IF NOT EXISTS grants(id INTEGER PRIMARY KEY, source TEXT NOT NULL, purpose_en TEXT NOT NULL DEFAULT '', purpose_ml TEXT NOT NULL DEFAULT '', sanction_no TEXT NOT NULL DEFAULT '',
+  sanction_on TEXT NOT NULL DEFAULT '', amount REAL NOT NULL DEFAULT 0, received_on TEXT NOT NULL DEFAULT '', receipt_id INTEGER, fy TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'open',
+  note TEXT NOT NULL DEFAULT '', created REAL NOT NULL, created_by INTEGER);
 CREATE TABLE IF NOT EXISTS subscriptions(id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL, year INTEGER NOT NULL, amount REAL NOT NULL,
   paid REAL NOT NULL DEFAULT 0, receipt_id INTEGER, status TEXT NOT NULL DEFAULT 'due', due_on TEXT NOT NULL DEFAULT '', created REAL NOT NULL, reminded_at REAL,
   UNIQUE(member_id, year));
@@ -220,6 +227,7 @@ MIGRATIONS = [
     ("broadcasts", "send_at", "REAL"),
     ("registrations", "team", "TEXT NOT NULL DEFAULT ''"),
     ("members", "team", "TEXT NOT NULL DEFAULT ''"),
+    ("transactions", "grant_id", "INTEGER"),
 ]
 
 
@@ -396,6 +404,18 @@ DEFAULT_SETTINGS = {
     "social_whatsapp": "",
     "site_cover": "",
     "backup_keep": "14",
+    # society accounts
+    "fy_start_month": "4",
+    "custom_heads": json.dumps([]),
+    "head_nature": json.dumps({}),
+    # Library Council affiliation
+    "council_reg_no": "",
+    "council_grade": "",
+    "council_district": "",
+    "council_taluk": "",
+    "library_hours": "",
+    "librarian_name": "",
+    "council_criteria": json.dumps({}),
 }
 
 

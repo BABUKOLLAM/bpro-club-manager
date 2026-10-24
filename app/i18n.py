@@ -165,15 +165,24 @@ HEAD_LABELS = {
     "grant": {"en": "Grant", "ml": "ഗ്രാന്റ്"},
     "other_income": {"en": "Other income", "ml": "മറ്റ് വരുമാനം"},
     "event_expense": {"en": "Event expense", "ml": "പരിപാടി ചെലവ്"},
-    "books": {"en": "Books & periodicals", "ml": "പുസ്തകങ്ങൾ & ആനുകാലികങ്ങൾ"},
+    "bank_interest": {"en": "Bank interest", "ml": "ബാങ്ക് പലിശ"},
+    "building_fund": {"en": "Building fund", "ml": "കെട്ടിട ഫണ്ട്"},
+    "books": {"en": "Books (library stock)", "ml": "പുസ്തകങ്ങൾ (ലൈബ്രറി സ്റ്റോക്ക്)"},
+    "newspapers": {"en": "Newspapers & periodicals", "ml": "പത്രങ്ങൾ & ആനുകാലികങ്ങൾ"},
+    "electricity": {"en": "Electricity & water", "ml": "വൈദ്യുതി & വെള്ളം"},
+    "printing": {"en": "Printing, stationery & postage", "ml": "അച്ചടി, സ്റ്റേഷനറി & തപാൽ"},
+    "furniture": {"en": "Furniture & equipment", "ml": "ഫർണിച്ചർ & ഉപകരണങ്ങൾ"},
+    "building": {"en": "Building & construction", "ml": "കെട്ടിടം & നിർമ്മാണം"},
+    "deposit_refund": {"en": "Deposit refund", "ml": "നിക്ഷേപം തിരികെ നൽകൽ"},
+    "bank_charges": {"en": "Bank charges", "ml": "ബാങ്ക് ചാർജുകൾ"},
     "rent": {"en": "Rent & utilities", "ml": "വാടക & യൂട്ടിലിറ്റി"},
     "salary": {"en": "Salary & honorarium", "ml": "ശമ്പളം & ഓണറേറിയം"},
     "maintenance": {"en": "Maintenance", "ml": "അറ്റകുറ്റപ്പണി"},
     "charity": {"en": "Charity & welfare", "ml": "ജീവകാരുണ്യം & ക്ഷേമം"},
     "other_expense": {"en": "Other expense", "ml": "മറ്റ് ചെലവ്"},
 }
-RECEIPT_HEADS = ["admission", "subscription", "donation", "event_fee", "library_fine", "library_deposit", "sponsorship", "grant", "other_income"]
-PAYMENT_HEADS = ["event_expense", "books", "rent", "salary", "maintenance", "charity", "other_expense"]
+RECEIPT_HEADS = ["admission", "subscription", "donation", "event_fee", "library_fine", "library_deposit", "sponsorship", "grant", "bank_interest", "building_fund", "other_income"]
+PAYMENT_HEADS = ["event_expense", "books", "newspapers", "rent", "electricity", "salary", "printing", "maintenance", "charity", "furniture", "building", "deposit_refund", "bank_charges", "other_expense"]
 
 
 class _Safe(dict):

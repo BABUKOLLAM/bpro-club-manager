@@ -8,7 +8,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from . import comms, db, i18n
+from . import comms, db, i18n, ledger
 from .auth import can, current_user, require
 
 router = APIRouter(prefix="/api/finance")
@@ -27,17 +27,18 @@ def record(c, user_id, b, notify=True):
     if kind not in ("receipt", "payment"):
         raise HTTPException(400, "kind")
     head = b.get("head") or ""
-    if head not in (i18n.RECEIPT_HEADS if kind == "receipt" else i18n.PAYMENT_HEADS):
+    if head not in ledger.heads_for(kind):
         raise HTTPException(400, "head")
     amount = float(b.get("amount") or 0)
     if amount <= 0:
         raise HTTPException(400, "amount")
     tx_date = b.get("tx_date") or dt.date.today().isoformat()
+    ledger.assert_open(tx_date)
     year = int(tx_date[:4])
     mode = b.get("mode") if b.get("mode") in MODES else "cash"
     row = {"kind": kind, "no": _no(c, kind, year), "tx_date": tx_date, "head": head, "member_id": b.get("member_id") or None, "post_id": b.get("post_id") or None,
            "party": (b.get("party") or "").strip(), "amount": amount, "mode": mode, "ref": (b.get("ref") or "").strip(), "note": (b.get("note") or "").strip(),
-           "year": int(b.get("year") or year), "created_by": user_id, "created": time.time()}
+           "year": int(b.get("year") or year), "created_by": user_id, "created": time.time(), "grant_id": b.get("grant_id") or None}
     row["id"] = db.insert(c, "transactions", row)
     if kind == "receipt" and row["member_id"] and head == "subscription":
         sub = db.one("SELECT * FROM subscriptions WHERE member_id=? AND year=? ", (row["member_id"], row["year"]))
@@ -50,7 +51,7 @@ def record(c, user_id, b, notify=True):
         c.execute("UPDATE registrations SET fee_paid=1, receipt_id=? WHERE post_id=? AND member_id=?", (row["id"], row["post_id"], row["member_id"]))
     if notify and kind == "receipt" and row["member_id"]:
         comms.notify_members(c, [row["member_id"]], "receipt", {"no": row["no"], "amount": f"{amount:,.0f}", "date": tx_date}, ("app", "whatsapp", "sms"),
-                             ref_kind="receipt", ref_id=row["id"], created_by=user_id, per_member=lambda m: {"head": i18n.label(i18n.HEAD_LABELS, head, m["lang"])})
+                             ref_kind="receipt", ref_id=row["id"], created_by=user_id, per_member=lambda m: {"head": i18n.label(ledger.labels(), head, m["lang"])})
         c.execute("UPDATE transactions SET notified_at=? WHERE id=?", (time.time(), row["id"]))
     db.audit(c, user_id, f"{kind}.record", "transaction", row["id"], f"{head} {amount}")
     return row
@@ -103,6 +104,7 @@ async def void_transaction(tid: int, request: Request, user=Depends(require("fin
     t = db.one("SELECT * FROM transactions WHERE id=? AND void=0", (tid,))
     if not t:
         raise HTTPException(404)
+    ledger.assert_open(t["tx_date"])
     with db.tx() as c:
         db.update(c, "transactions", tid, {"void": 1, "void_note": note})
         if t["kind"] == "receipt" and t["head"] == "subscription" and t["member_id"]:
@@ -232,7 +234,7 @@ async def claim_payment(request: Request, user=Depends(current_user)):
     utr = (b.get("utr") or "").strip()
     if len(utr) < 6:
         raise HTTPException(400, "enter the UPI transaction / UTR number")
-    head = b.get("head") if b.get("head") in i18n.RECEIPT_HEADS else "subscription"
+    head = b.get("head") if b.get("head") in ledger.heads_for("receipt") else "subscription"
     with db.tx() as c:
         if db.one("SELECT 1 FROM payment_claims WHERE utr=? AND status<>'rejected'", (utr,)):
             raise HTTPException(409, "that transaction is already recorded")

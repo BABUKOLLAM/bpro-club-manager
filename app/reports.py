@@ -3,7 +3,7 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends
 
-from . import brand, db
+from . import brand, db, ledger
 from .auth import can, current_user, require
 
 router = APIRouter(prefix="/api/reports")
@@ -140,7 +140,7 @@ def annual_print(year: int = 0, lang: str = "ml", user=Depends(require("reports.
     ev = "".join(f"<tr><td>{e(i18n.pick(x, 'title', lang))}</td><td>{e(i18n.label(i18n.KIND_LABELS, x['kind'], lang))}</td><td>{e(x['starts_at'][:10])}</td><td class=n>{x['participants']}</td></tr>" for x in r["events"])
     mt = "".join(f"<tr><td>{e(i18n.pick(x, 'name', lang))}</td><td class=n>{x['meetings']}</td><td class=n>{x['avg_present']:.1f}</td></tr>" for x in r["meetings"])
     res = "".join(f"<li><b>{e(x['resolution_no'])}</b> {e(i18n.pick(x, 'title', lang))} <span class=m>({e(i18n.pick(x, 'committee', lang))}, {e(x['scheduled_at'][:10])})</span><br>{e(i18n.pick(x, 'decision', lang))}</li>" for x in r["resolutions"])
-    heads = "".join(f"<tr><td>{'▲' if h['kind']=='receipt' else '▼'} {e(i18n.label(i18n.HEAD_LABELS, h['head'], lang))}</td><td class=n>{money(h['total'])}</td></tr>" for h in r["accounts"]["by_head"])
+    heads = "".join(f"<tr><td>{'▲' if h['kind']=='receipt' else '▼'} {e(i18n.label(ledger.labels(), h["head"], lang))}</td><td class=n>{money(h['total'])}</td></tr>" for h in r["accounts"]["by_head"])
     ob = "".join(f"<tr><td>{e(i18n.pick(x, 'designation', lang))}</td><td>{e(i18n.pick(x, 'name', lang))}</td></tr>" for x in r["office_bearers"])
     bt = "".join(f"<tr><td>{e((types.get(x['k']) or {}).get(lang) or x['k'])}</td><td class=n>{x['n']}</td></tr>" for x in r["members"]["by_type"])
     pop = "".join(f"<li>{e(i18n.pick(x, 'title', lang))} ({x['n']})</li>" for x in r["library"]["popular"])

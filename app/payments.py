@@ -14,7 +14,7 @@ import urllib.request
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from . import comms, db, i18n
+from . import comms, db, i18n, ledger
 from .auth import can, current_user, require
 
 router = APIRouter(prefix="/api/payments")
@@ -67,7 +67,7 @@ async def order(request: Request, user=Depends(current_user)):
     amount = round(float(b.get("amount") or 0), 2)
     if amount < 1:
         raise HTTPException(400, "amount")
-    head = b.get("head") if b.get("head") in i18n.RECEIPT_HEADS else "subscription"
+    head = b.get("head") if b.get("head") in ledger.heads_for("receipt") else "subscription"
     m = db.one("SELECT member_no, name_en, phone, email FROM members WHERE id=?", (user["member_id"],))
     receipt_ref = f"m{user['member_id']}-{int(time.time())}"
     try:
@@ -79,7 +79,7 @@ async def order(request: Request, user=Depends(current_user)):
                                               "year": int(b.get("year") or time.strftime("%Y")), "post_id": b.get("post_id") or None, "booking_id": b.get("booking_id") or None,
                                               "note": (b.get("note") or "")[:200], "status": "created", "created": time.time(), "raw": json.dumps(o)[:2000]})
     return {"ok": True, "id": gid, "order_id": o["id"], "amount": amount, "key_id": comms.cfg("CLUB_RZP_KEY_ID"), "currency": "INR",
-            "prefill": {"name": m["name_en"], "contact": m["phone"], "email": m["email"]}, "description": i18n.label(i18n.HEAD_LABELS, head, "en")}
+            "prefill": {"name": m["name_en"], "contact": m["phone"], "email": m["email"]}, "description": i18n.label(ledger.labels(), head, "en")}
 
 
 def _settle(c, go, payment_id, user_id=None, source="checkout"):
