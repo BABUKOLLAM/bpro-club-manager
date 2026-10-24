@@ -8,7 +8,7 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 IMG = "img"
 e = html.escape
-VERSION = "1.3"
+VERSION = "1.4"
 VERSION_DATE = "October 2026"
 CREDIT_NAME = "Dr. Babu B"
 CREDIT_QUALS = "MBA, MPhil, PGDTRM, PGDHRM, Ph.D. (UGC-NET)"
@@ -17,7 +17,7 @@ CREDIT_SITES = ["www.bpropms.com", "www.drbabu.in", "www.bprohrms.com", "www.cop
 _SIZES = {}
 LOGO_WHITE = "brand/bpro-logo-white.png"
 LOGO_NAVY = "brand/bpro-logo-navy.png"
-HISTORY = [  # version, date, what changed (nine releases over twenty months)
+HISTORY = [  # version, date, what changed (ten releases over twenty months)
     ("0.2", "February 2025", "Discovery: workshops with three clubs in Kottayam, audit of paper registers and WhatsApp groups; requirements for membership, library and events agreed."),
     ("0.4", "June 2025", "Pilot: membership register with online application, approval and numbering; Malayalam interface; e-card prototype; first club live."),
     ("0.6", "September 2025", "Library and reading room; events with registration and reminders; WhatsApp / SMS / e-mail outbox; family details and blood groups."),
@@ -27,6 +27,7 @@ HISTORY = [  # version, date, what changed (nine releases over twenty months)
     ("1.1", "October 2026", "Visual edition: colour system, numbered pointers and tooltips, lens zoom-ins, sticky notes, missions and badges, barcodes on every page, contents with page numbers."),
     ("1.2", "October 2026", "Full-bleed cover, decorative page frames, the Bpro logo, release history."),
     ("1.3", "October 2026", "Society accounts (statements, cash book, year close, Tally), the Library Council pack, and a new part on residents' associations: units, maintenance billing, helpdesk."),
+    ("1.4", "October 2026", "Readability edition: larger type and screenshots cropped to their content, a calmer cover, full-bleed part openers with chapter lists, a running header, page numbers and PDF bookmarks, pages that fill."),
 ]
 
 
@@ -55,8 +56,10 @@ def fig(name, caption, kind="desk", w=None):
         return f"<figure class='phone-fig'><div class='phone'><img src='{IMG}/{name}.jpg' alt=''></div><figcaption>{caption}</figcaption></figure>"
     if kind == "plain":
         return f"<figure class='desk'{(' style=' + chr(39) + 'max-width:' + w + chr(39)) if w else ''}><img src='{IMG}/{name}.png' alt='' style='width:100%;border-radius:12px;box-shadow:0 10px 28px rgba(27,31,59,.18)'><figcaption>{caption}</figcaption></figure>"
-    cls = "small" if kind == "small" else "desk"
-    style = f" style='max-width:{w}'" if w else ""
+    cls = "desk"
+    if kind == "small" and not w:    # the screenshot's own size: one css pixel is 0.2 mm, so its text stays as readable as on the full-width shots
+        w = f"{min(176, round(img_size(name)[0] / 2 * 0.2))}mm"
+    style = f" style='max-width:{w};margin-left:auto;margin-right:auto'" if w else ""
     return f"<figure class='{cls}'{style}>{_win(name)}<figcaption>{caption}</figcaption></figure>"
 
 
@@ -102,7 +105,7 @@ def dyk(text):
 
 
 def quest(title, items, xp=20):
-    return f"<div class='quest'><span class='xp'>+{xp} XP</span><b class='t'>{e(title)}</b><ul>{''.join(f'<li>{i}</li>' for i in items)}</ul></div>"
+    return f"<div class='quest'><span class='xp'>+{xp} XP</span><b class='t'>{e(html.unescape(title))}</b><ul>{''.join(f'<li>{i}</li>' for i in items)}</ul></div>"
 
 
 def badges(items):
@@ -110,7 +113,7 @@ def badges(items):
 
 
 def steps(items):
-    return "<ol class='steps'>" + "".join(f"<li><b>{e(t)}</b>{(' ' + d) if d else ''}</li>" for t, d in items) + "</ol>"
+    return "<ol class='steps'>" + "".join(f"<li><b>{e(html.unescape(t))}</b>{(' ' + d) if d else ''}</li>" for t, d in items) + "</ol>"
 
 
 def tip(text, kind="tip"):
@@ -155,9 +158,9 @@ LEVELS = {"A": ("0", "Welcome", "read the map"), "B": ("1", "Member", "apply, e-
 
 
 def part_opener(letter, title, blurb, items):
-    n, lv, sub = LEVELS[letter]
-    return close() + f"""<section class='part {letter}' id='p{letter}'><div class='part-in'><div class='part-letter'>Part {letter}</div><h1>{e(title)}</h1><p>{e(blurb)}</p>
-<ul>{''.join(f'<li>{e(i)}</li>' for i in items)}</ul><div class='level'><span class='n'>{n}</span><span><b>Level {n} · {lv}</b><small>{sub}</small></span></div></div></section>"""
+    """A blank page here; the real opener is a full-bleed page rendered on its own and swapped in (see opener_html)."""
+    OPENERS[letter] = (title, blurb, items)
+    return close() + f"<section class='opener-ph' id='p{letter}'><span class='mk'>OPENER-{letter}</span></section>"
 
 
 def flow(nodes, w=760, accent=False):
@@ -229,6 +232,53 @@ def msg_svg():
 </svg>"""
 
 
+TOC = [("A", "Welcome", ["How to use this book", "Three kinds of reader", "Languages, phones and the installed app"]),
+           ("B", "Members' guide", ["Getting started", "Applying for membership", "Signing in and forgotten passwords", "Home and the menu", "Profile, family and the e-card",
+                                    "Notifications and preferences", "News, events and competitions", "Library and reading room", "Paying dues and fees", "Documents, bookings, polls, meetings, directory"]),
+           ("C", "Office bearers' guide", ["Roles and who can do what", "The dashboard", "First-time setup", "Applications and the members register", "Publishing news, events and competitions",
+                                           "Committees, meetings, minutes, actions and plans", "The library desk", "The Library Council pack", "Accounts, dues and payments", "Statements, cash book and the year close", "Facilities, assets and documents", "Broadcasts and the outbox",
+                                           "Polls and elections", "Scan QR at the door", "Reports, annual report, audit and backups", "The public website and the in-app handbook", "Your ClubPro subscription"]),
+           ("D", "Operator's guide", ["How the platform is built", "Installing on a server", "The platform console", "Clubs signing up by themselves", "Billing, reminders and suspension", "White label per club", "Message channels and payment gateways", "Backups and safety"]),
+           ("E", "Residents' associations", ["Switching on association mode", "Units and residents", "Maintenance billing", "Complaints and the helpdesk", "A resident's phone"]),
+           ("F", "Reference", ["Permissions matrix", "Numbering formats", "Automatic messages", "Environment variables", "Glossary English · Malayalam", "Frequently asked questions"])]
+CHAPTERS = {}   # chapter number -> (part letter, title)
+_n = 0
+for _letter, _ptitle, _chs in TOC:
+    for _c in _chs:
+        _n += 1
+        CHAPTERS[_n] = (_letter, _c)
+OPENERS = {}    # part letter -> (title, blurb, [what is inside]); filled by part_opener() while the body is built
+
+
+def pair_small(pieces):
+    """Consecutive half-width figures are wrapped in a two-column row, so a run of small screenshots fills the page."""
+    out, run = [], []
+
+    def flush():
+        if len(run) >= 2:
+            for i in range(0, len(run), 2):
+                out.append("<div class='pair'>" + "".join(run[i:i + 2]) + "</div>")
+        else:
+            out.extend(run)
+        run.clear()
+    pieces = list(pieces)
+    k = 0
+    while k < len(pieces):            # a chapter head travels with the piece after it (its "at a glance" box, or the first paragraph), so it is never stranded at a page foot
+        pc = pieces[k]
+        if isinstance(pc, str) and "<div class='ch-head" in pc and k + 1 < len(pieces):
+            at = pc.index("<div class='ch-head")
+            pieces[k:k + 2] = [pc[:at] + "<div class='keep'>" + pc[at:] + pieces[k + 1] + "</div>"]
+        k += 1
+    for piece in pieces:
+        if isinstance(piece, str) and piece.startswith("<figure class='small'"):
+            run.append(piece)
+        else:
+            flush()
+            out.append(piece)
+    flush()
+    return out
+
+
 # ---------- content ----------
 def build():
     P = []  # pieces
@@ -244,21 +294,14 @@ def build():
 <div class='box'><b>Release history</b><table class='version-table'><tr><th>Version</th><th>Date</th><th>What changed</th></tr>
 {''.join(f"<tr><td>{v}</td><td>{d}</td><td>{w}</td></tr>" for v, d, w in reversed(HISTORY))}</table></div>
 <div class='box'><b>How the page furniture works</b><ul style='margin:4px 0 0;padding-left:18px'>
+<li>The <b>running header</b> names the part and the chapter you are in; the <b>footer</b> shows the page number and how many pages there are; the PDF's <b>bookmarks</b> (sidebar) jump to any part or chapter.</li>
 <li><b>Barcode</b> at the foot of every page encodes the handbook version and page (for example <code>CLUBPRO-HB-{VERSION}-P007</code>), so a photographed or printed page can always be traced to its edition.</li>
 <li><b>Progress bar and XP</b> in each chapter head show how far you are through the book; <b>missions</b> at the end of chapters are things to try in the app; <b>badges</b> mark what you can do once a part is finished.</li>
 <li><b>Pointers</b> on screenshots are numbered and explained under the picture; <b>lenses</b> zoom into one control; <b>sticky notes</b> carry the advice an experienced secretary would give you.</li>
 <li><span class='hl'>Highlighted text</span> is the thing to remember from a paragraph.</li></ul></div>
 <p class='small'>ClubPro is a product of {CREDIT_ORG}. Screens shown are from a demonstration club; names are fictitious. © {VERSION_DATE.split()[-1]} {CREDIT_ORG}.</p></section>""")
     # ----- contents -----
-    toc = [("A", "Welcome", ["How to use this book", "Three kinds of reader", "Languages, phones and the installed app"]),
-           ("B", "Members' guide", ["Getting started", "Applying for membership", "Signing in and forgotten passwords", "Home and the menu", "Profile, family and the e-card",
-                                    "Notifications and preferences", "News, events and competitions", "Library and reading room", "Paying dues and fees", "Documents, bookings, polls, meetings, directory"]),
-           ("C", "Office bearers' guide", ["Roles and who can do what", "The dashboard", "First-time setup", "Applications and the members register", "Publishing news, events and competitions",
-                                           "Committees, meetings, minutes, actions and plans", "The library desk", "The Library Council pack", "Accounts, dues and payments", "Statements, cash book and the year close", "Facilities, assets and documents", "Broadcasts and the outbox",
-                                           "Polls and elections", "Scan QR at the door", "Reports, annual report, audit and backups", "The public website and the in-app handbook", "Your ClubPro subscription"]),
-           ("D", "Operator's guide", ["How the platform is built", "Installing on a server", "The platform console", "Clubs signing up by themselves", "Billing, reminders and suspension", "White label per club", "Message channels and payment gateways", "Backups and safety"]),
-           ("E", "Residents' associations", ["Switching on association mode", "Units and residents", "Maintenance billing", "Complaints and the helpdesk", "A resident's phone"]),
-           ("F", "Reference", ["Permissions matrix", "Numbering formats", "Automatic messages", "Environment variables", "Glossary English · Malayalam", "Frequently asked questions"])]
+    toc = TOC
     n = 1
     rows = []
     for letter, title, chs in toc:
@@ -796,7 +839,7 @@ def build():
     A("<section class='full blank'></section>")
     A("</body></html>")
     with open(os.path.join(HERE, "handbook.html"), "w", encoding="utf-8") as f:
-        f.write("\n".join(P))
+        f.write("\n".join(pair_small(P)))
     print("handbook.html written")
 
 
@@ -809,22 +852,40 @@ def _standalone(body):
 <link rel="stylesheet" href="handbook.css"><style>@page{{size:A4;margin:0}}body{{margin:0}}</style></head><body>{body}</body></html>"""
 
 
-COVER_PARTS = [("A", "Welcome", "How to read this book"), ("B", "Members", "Join, pay, borrow, vote"), ("C", "Office bearers", "Run the club from a laptop"), ("D", "Operator", "Console, pricing, billing"), ("E", "Associations", "Units, maintenance, complaints"), ("F", "Reference", "Permissions, formats, glossary")]
-
-
 def cover_html():
     return _standalone(f"""<section class='bleed cover'>
-<div class='grid'>
-  <div class='top'><img class='logo' src='{LOGO_WHITE}' alt='Bpro'><div class='pill'>User Manual &amp; Handbook · v{VERSION}</div></div>
-  <div class='title'><div class='kicker'>ClubPro</div><h1>User Manual<br>&amp; Handbook</h1>
-    <p class='lead'>Membership · Library &amp; reading room · Events &amp; competitions · Committees &amp; minutes · Accounts &amp; dues · WhatsApp, SMS and e-mail</p>
-    <p class='lead2'>For members, office bearers and the club's operator. English, with every screen also in Malayalam.</p>
-    <div class='stickers'><span class='sticker'>120 screenshots</span><span class='sticker b'>49 chapters · 6 levels</span><span class='sticker c'>ഇംഗ്ലീഷ് · മലയാളം</span></div></div>
-  <div class='shots'><img class='c1' src='{IMG}/d-dashboard.jpg' alt=''><img class='c2' src='{IMG}/m-me.jpg' alt=''></div>
-  <div class='cparts'>{''.join(f"<div class='cp'><div class='l' style='background:linear-gradient(135deg,{PART_COLOURS[k][0]},{PART_COLOURS[k][1]})'>{k}</div><div><b>{n}</b><span>{d}</span></div></div>" for k, n, d in COVER_PARTS)}</div>
-  <div class='band'><div class='credit'><b>Designed &amp; Developed by {CREDIT_NAME}</b><span>{CREDIT_QUALS}</span><span>{CREDIT_ORG}</span><span class='sites'>{' | '.join(CREDIT_SITES[:2])}</span><span class='sites'>{' | '.join(CREDIT_SITES[2:])}</span></div>
-    <div class='ver'><b>Version {VERSION}</b><span>{VERSION_DATE}</span><span>Powered by Team Bpro</span></div></div>
-</div></section>""")
+  <div class='top'><img class='logo' src='{LOGO_WHITE}' alt='Bpro'><div class='pill'>Version {VERSION} · {VERSION_DATE}</div></div>
+  <div class='title'>
+    <div class='kicker'><i></i>ClubPro</div>
+    <h1>User Manual<br>&amp; Handbook</h1>
+    <p class='tag'>Membership, library, accounts, events, committees and messaging for clubs and residents' associations, in English and Malayalam.</p>
+    <div class='facts'><div><b>{TOTAL_CH}</b><span>chapters</span></div><div><b>120+</b><span>screens</span></div><div><b>2</b><span>languages</span></div><div><b>6</b><span>parts</span></div></div>
+  </div>
+  <div class='art'><img class='desk' src='{IMG}/d-dashboard.jpg' alt=''><img class='phn' src='{IMG}/m-home.jpg' alt=''></div>
+  <div class='band'><div class='credit'><b>Designed &amp; Developed by {CREDIT_NAME}</b><span>{CREDIT_QUALS}</span><span>{CREDIT_ORG}</span><span class='sites'>{'  ·  '.join(CREDIT_SITES)}</span></div>
+    <div class='ver'><span>Powered by</span><b>Team Bpro</b></div></div>
+</section>""")
+
+
+def opener_html(letter):
+    """A part opener: full-bleed, in the part's colours, with the chapters of the part and their pages."""
+    title, blurb, items = OPENERS[letter]
+    n, lv, sub = LEVELS[letter]
+    first = 1 + sum(len(c) for _l, _t, c in TOC[:[t[0] for t in TOC].index(letter)])
+    rows = "".join(f"<li><span class='no'>{first + i}</span><span class='t'>{e(c)}</span><span class='pg'>{PAGES.get(first + i, '')}</span></li>" for i, c in enumerate(TOC[[t[0] for t in TOC].index(letter)][2]))
+    cols = " two" if len(TOC[[t[0] for t in TOC].index(letter)][2]) > 8 else ""
+    return _standalone(f"""<section class='bleed opener {letter}'>
+  <div class='wm'>{letter}</div>
+  <div class='in'>
+    <div class='lvl'><span class='n'>{n}</span><span><b>Level {n} · {lv}</b> · {sub}</span></div>
+    <div class='plabel'>PART {letter}</div>
+    <h1>{e(title)}</h1>
+    <p class='blurb'>{e(blurb)}</p>
+    <div class='inside'>In this part</div>
+    <ol class='chs{cols}'>{rows}</ol>
+  </div>
+  <div class='foot'><img src='{LOGO_WHITE}' alt='Bpro'><span>ClubPro User Manual &amp; Handbook · v{VERSION}</span></div>
+</section>""")
 
 
 def back_html():
@@ -838,24 +899,28 @@ def back_html():
 PART_COLOURS = {"A": ("#4F46E5", "#06B6D4"), "B": ("#06B6D4", "#0D9488"), "C": ("#F97316", "#EC4899"), "D": ("#7C3AED", "#EC4899"), "E": ("#0EA5E9", "#6366F1"), "F": ("#84CC16", "#0D9488")}
 
 
-def page_parts(pdf_path):
-    """For every page: the part letter in force (carried forward), and whether the page is a full-bleed opener."""
+def scan_body(pdf_path):
+    """For every page of the body render: (part letter in force, kind) where kind is cover, back, opener or page."""
     import pdfplumber
     import re as _re
-    out = []
-    part = "A"
+    out, part = [], "A"
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
+        n = len(pdf.pages)
+        for i, page in enumerate(pdf.pages):
             text = page.extract_text() or ""
-            m = _re.search(r"PART ([A-F]) ·", text)
-            opener = bool(_re.search(r"Level [0-9★] ·", text)) and "Chapter" not in text
-            if m:
-                part = m.group(1)
-            elif opener:
-                pm = _re.search(r"Part ([A-F])\b", text)
-                if pm:
-                    part = pm.group(1)
-            out.append((part, opener))
+            kind = "page"
+            mk = _re.search(r"OPENER-([A-F])", text)
+            if i == 0:
+                kind = "cover"
+            elif i == n - 1:
+                kind = "back"
+            elif mk:
+                part, kind = mk.group(1), "opener"
+            else:
+                m = _re.search(r"PART ([A-F]) ·", text)
+                if m:
+                    part = m.group(1)
+            out.append((part, kind))
     return out
 
 
@@ -867,48 +932,80 @@ def find_pages(pdf_path):
     with pdfplumber.open(pdf_path) as pdf:
         for i, page in enumerate(pdf.pages, 1):
             text = page.extract_text() or ""
-            m = _re.search(r"Chapter (\d+) of %d" % TOTAL_CH, text)
-            if m and int(m.group(1)) not in pages:
-                pages[int(m.group(1))] = i
+            for m in _re.finditer(r"Chapter (\d+) of %d" % TOTAL_CH, text):    # a page can now hold the end of one chapter and the head of the next
+                if int(m.group(1)) not in pages:
+                    pages[int(m.group(1))] = i
     return pages
 
 
+def _where(i):
+    """The chapter a page belongs to: the last chapter that starts on or before page i (1-based), or None."""
+    best = None
+    for num, pg in PAGES.items():
+        if pg <= i and (best is None or num > best):
+            best = num
+    return best
+
+
 def barcode_overlay(pages_info, out_html):
-    """One A4 page per handbook page: a Code128 barcode for the page and, on content pages, a decorative frame in the
-    margins coloured by part (a ribbon down the outer edge with the part letter, corner arcs, a hairline under the header)."""
+    """One A4 page per handbook page, stamped over the body: the running header (part and chapter), the footer with the
+    credit and the page number, the part-coloured ribbon down the outer edge, and the Code128 barcode of the page."""
     import barcode
     from barcode.writer import SVGWriter
     import re as _re
-    parts = ["<!doctype html><html><head><meta charset='utf-8'><style>@page{size:A4;margin:0}body{margin:0;font-family:Sora,Inter,sans-serif}"
+    total = len(pages_info)
+    parts = ["<!doctype html><html><head><meta charset='utf-8'><link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap' rel='stylesheet'><style>@page{size:A4;margin:0}body{margin:0;font-family:Inter,sans-serif}"
              ".pg{width:210mm;height:297mm;position:relative;page-break-after:always;overflow:hidden}"
-             ".bc{position:absolute;right:16mm;bottom:7mm;width:34mm}.bc svg{width:100%;height:auto;display:block}.bc.tile{background:#fff;border-radius:2.5mm;padding:1.5mm 2mm;right:14mm;bottom:6mm;box-shadow:0 2px 6px rgba(0,0,0,.25)}"
-             ".frame{position:absolute;inset:0}</style></head><body>"]
-    for i, (part, opener) in enumerate(pages_info, 1):
+             ".bc{position:absolute;right:17mm;bottom:8mm;width:34mm}.bc svg{width:100%;height:auto;display:block}.bc.tile{background:#fff;border-radius:2.5mm;padding:1.5mm 2mm;right:14mm;bottom:6mm;box-shadow:0 2px 6px rgba(0,0,0,.25)}"
+             ".frame{position:absolute;inset:0}"
+             ".hd{position:absolute;left:17mm;right:17mm;top:9.5mm;display:flex;justify-content:space-between;align-items:baseline;gap:8mm}"
+             ".hd .l{font-size:9pt;color:#5A6079;white-space:nowrap}.hd .l b{font-family:Sora;font-size:10.5pt;color:#4F46E5;margin-right:2mm}"
+             ".hd .r{font-size:9.5pt;color:#1B1F3B;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+             ".hd .r i{font-style:normal;font-size:7.8pt;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-right:3mm}"
+             ".rule{position:absolute;left:17mm;right:17mm;top:18.6mm;height:.5mm;border-radius:1mm}"
+             ".frule{position:absolute;left:17mm;right:17mm;bottom:21.4mm;height:.3mm;background:#DADDEB}"
+             ".fl{position:absolute;left:17mm;bottom:8.5mm;display:flex;align-items:center;gap:3mm}.fl img{height:7.5mm}"
+             ".fl div{font-size:7.8pt;line-height:1.4;color:#5A6079}.fl b{color:#1B1F3B;font-weight:600}"
+             ".pn{position:absolute;left:112mm;bottom:10mm;border-radius:999px;color:#fff;font-weight:700;font-size:9.5pt;padding:1.7mm 4.6mm;white-space:nowrap}"
+             ".pn span{opacity:.8;font-weight:500}"
+             "</style></head><body>"]
+    for i, (part, kind) in enumerate(pages_info, 1):
         code = f"CLUBPRO-HB-{VERSION}-P{i:03d}"
         svg = barcode.get("code128", code, writer=SVGWriter()).render({"module_width": 0.2, "module_height": 6.0, "font_size": 5, "text_distance": 1.5, "quiet_zone": 1, "write_text": True}).decode()
         svg = _re.sub(r"<\?xml[^>]*>|<!DOCTYPE[^>]*>", "", svg)
-        frame = ""
-        if not opener and i > 1 and i < len(pages_info):
+        furniture = ""
+        if kind == "page":
             c1, c2 = PART_COLOURS.get(part, PART_COLOURS["A"])
             left = i % 2 == 0  # ribbon on the outer edge: left on even pages, right on odd pages
             x = 5 if left else 201.5
-            frame = f"""<svg class='frame' viewBox='0 0 210 297' xmlns='http://www.w3.org/2000/svg'>
-<defs><linearGradient id='g{i}' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{c1}'/><stop offset='1' stop-color='{c2}'/></linearGradient>
-<linearGradient id='h{i}' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='{c1}'/><stop offset='1' stop-color='{c2}' stop-opacity='0'/></linearGradient></defs>
-<rect x='{x}' y='24' width='3.5' height='249' rx='1.75' fill='url(#g{i})'/>
-<circle cx='{x + 1.75}' cy='20' r='4.2' fill='{c1}'/><text x='{x + 1.75}' y='21.6' text-anchor='middle' font-size='4.6' font-weight='800' fill='#fff'>{part}</text>
-<circle cx='{x + 1.75}' cy='277' r='1.6' fill='{c2}'/><circle cx='{x + 1.75}' cy='282' r='1.1' fill='{c2}' opacity='.6'/><circle cx='{x + 1.75}' cy='286' r='.7' fill='{c2}' opacity='.35'/>
-<rect x='16' y='13.2' width='178' height='.5' fill='url(#h{i})' opacity='.9'/>
-<path d='M194 6 a8 8 0 0 1 8 8' stroke='{c2}' stroke-width='.6' fill='none' opacity='.8'/><path d='M8 291 a8 8 0 0 0 8 -8' stroke='{c1}' stroke-width='.6' fill='none' opacity='.8'/>
-</svg>"""
-        tile = " tile" if i == 1 or i == len(pages_info) else ""
-        parts.append(f"<div class='pg'>{frame}<div class='bc{tile}'>{svg}</div></div>")
+            ch = _where(i)
+            if i == 2:
+                run = "<i style='color:%s'>Introduction</i>About this handbook" % c1
+            elif i == 3:
+                run = "<i style='color:%s'>Introduction</i>Contents" % c1
+            elif ch:
+                pl, ct = CHAPTERS[ch]
+                pname = next(t for L, t, _c in TOC if L == pl)
+                run = f"<i style='color:{c1}'>Part {pl} · {e(pname)}</i>{ch} · {e(ct)}"
+            else:
+                run = ""
+            furniture = f"""<svg class='frame' viewBox='0 0 210 297' xmlns='http://www.w3.org/2000/svg'>
+<defs><linearGradient id='g{i}' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='{c1}'/><stop offset='1' stop-color='{c2}'/></linearGradient></defs>
+<rect x='{x}' y='30' width='3.5' height='236' rx='1.75' fill='url(#g{i})'/>
+<circle cx='{x + 1.75}' cy='24' r='4.4' fill='{c1}'/><text x='{x + 1.75}' y='25.7' text-anchor='middle' font-size='4.8' font-weight='800' fill='#fff'>{part}</text>
+<circle cx='{x + 1.75}' cy='272' r='1.6' fill='{c2}'/><circle cx='{x + 1.75}' cy='277' r='1.1' fill='{c2}' opacity='.6'/><circle cx='{x + 1.75}' cy='281' r='.7' fill='{c2}' opacity='.35'/></svg>
+<div class='hd'><div class='l'><b>ClubPro</b>User Manual &amp; Handbook</div><div class='r'>{run}</div></div>
+<div class='rule' style='background:linear-gradient(90deg,{c1},{c2})'></div><div class='frule'></div>
+<div class='fl'><img src='{LOGO_NAVY}' alt=''><div><b>Designed &amp; Developed by {CREDIT_NAME}</b><br>{CREDIT_ORG}</div></div>
+<div class='pn' style='background:linear-gradient(90deg,{c1},{c2})'><span>Page</span> {i} <span>of {total}</span></div>"""
+        tile = " tile" if kind in ("cover", "back") else ""
+        parts.append(f"<div class='pg'>{furniture}<div class='bc{tile}'>{svg}</div></div>")
     parts.append("</body></html>")
     with open(out_html, "w", encoding="utf-8") as f:
         f.write("".join(parts))
 
 
-def stamp_barcodes(pdf_path, overlay_pdf, out_path):
+def stamp_barcodes(pdf_path, overlay_pdf, out_path, outline=None):
     from pypdf import PdfReader, PdfWriter
     base, over = PdfReader(pdf_path), PdfReader(overlay_pdf)
     w = PdfWriter()
@@ -936,9 +1033,35 @@ def stamp_barcodes(pdf_path, overlay_pdf, out_path):
             else:
                 first[h] = ref
     w.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+    if outline:
+        items, tree, _total = outline
+        for title, pg in items:
+            w.add_outline_item(title, pg - 1)
+        for ptitle, ppg, kids in tree:
+            parent = w.add_outline_item(ptitle, ppg - 1)
+            for ctitle, cpg in kids:
+                w.add_outline_item(ctitle, cpg - 1, parent=parent)
     w.add_metadata({"/Title": f"ClubPro User Manual & Handbook v{VERSION}", "/Author": f"{CREDIT_NAME}, {CREDIT_ORG}", "/Subject": "ClubPro: club, library and reading-room management", "/Creator": "ClubPro handbook builder"})
     with open(out_path, "wb") as f:
         w.write(f)
+
+
+def make_outline(info):
+    """Bookmarks: the cover, the front matter, then each part with its chapters. Returns a nested structure for add_outline."""
+    items = [("Cover", 1), ("About this handbook", 2), ("Contents", 3)]
+    opener_page = {}
+    for idx, (part, kind) in enumerate(info, 1):
+        if kind == "opener":
+            opener_page[part] = idx
+    tree = []
+    n = 0
+    for letter, ptitle, chs in TOC:
+        kids = []
+        for c in chs:
+            n += 1
+            kids.append((f"{n}  {c}", PAGES.get(n, opener_page.get(letter, 1))))
+        tree.append((f"Part {letter} · {ptitle}", opener_page.get(letter, 1), kids))
+    return items, tree, len(info)
 
 
 def full_build():
@@ -951,33 +1074,39 @@ def full_build():
     PAGES.update(find_pages(body_pdf))
     build()
     subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)      # pass 2: contents with page numbers
-    # the cover and the back cover, full-bleed, swapped in for the placeholders
+    PAGES.update(find_pages(body_pdf))
+    info = scan_body(body_pdf)
+    # the cover, the part openers and the back cover: full-bleed pages rendered on their own and swapped in for the placeholders
     extras = {}
-    for name, html_fn in (("cover", cover_html), ("back", back_html)):
+    jobs = [("cover", cover_html()), ("back", back_html())] + [(f"open{letter}", opener_html(letter)) for letter in OPENERS]
+    for name, body_html in jobs:
         h, o = os.path.join(HERE, f"_{name}.html"), os.path.join(HERE, f"_{name}.pdf")
         with open(h, "w", encoding="utf-8") as f:
-            f.write(html_fn())
+            f.write(body_html)
         subprocess.run(["node", render, h, o, "plain"], check=True)
         extras[name] = (h, o)
     body = PdfReader(body_pdf)
-    cover, back = PdfReader(extras["cover"][1]), PdfReader(extras["back"][1])
     merged = PdfWriter()
-    merged.add_page(cover.pages[0])
-    for pg in body.pages[1:-1]:
-        merged.add_page(pg)
-    merged.add_page(back.pages[0])
+    for idx, (pg, (part, kind)) in enumerate(zip(body.pages, info)):
+        if kind == "cover":
+            merged.add_page(PdfReader(extras["cover"][1]).pages[0])
+        elif kind == "back":
+            merged.add_page(PdfReader(extras["back"][1]).pages[0])
+        elif kind == "opener":
+            merged.add_page(PdfReader(extras[f"open{part}"][1]).pages[0])
+        else:
+            merged.add_page(pg)
     merged_pdf = os.path.join(HERE, "_merged.pdf")
     with open(merged_pdf, "wb") as f:
         merged.write(f)
-    info = page_parts(merged_pdf)
     overlay_html = os.path.join(HERE, "_overlay.html")
     overlay_pdf = os.path.join(HERE, "_overlay.pdf")
     barcode_overlay(info, overlay_html)
     subprocess.run(["node", render, overlay_html, overlay_pdf, "plain"], check=True)
-    stamp_barcodes(merged_pdf, overlay_pdf, pdf)
+    stamp_barcodes(merged_pdf, overlay_pdf, pdf, outline=make_outline(info))
     for f in (overlay_html, overlay_pdf, merged_pdf, body_pdf, *[x for pair in extras.values() for x in pair]):
         os.remove(f)
-    print(f"{len(info)} pages, contents mapped for {len(PAGES)} chapters, {sum(1 for _, o in info if o)} openers, frame and barcodes stamped")
+    print(f"{len(info)} pages, contents mapped for {len(PAGES)} chapters, {sum(1 for _, k in info if k == 'opener')} openers, header, footer and barcodes stamped")
 
 
 if __name__ == "__main__":
