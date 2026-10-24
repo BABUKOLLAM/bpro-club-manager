@@ -121,7 +121,7 @@ mark,.hl{background:linear-gradient(104deg,rgba(253,224,71,0) 0.9%,rgba(253,224,
 .glance ul{margin:0;padding-left:18px}.glance li{margin:2px 0}
 .steps{counter-reset:s;list-style:none;padding:0;margin:8px 0}
 .steps li{position:relative;padding:4px 0 6px 38px;margin:0;break-inside:avoid}
-.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:3px;width:26px;height:26px;border-radius:50%;background:var(--g-hero);color:#fff;font-weight:800;font-size:10pt;display:flex;align-items:center;justify-content:center;font-family:Sora;box-shadow:0 3px 8px rgba(79,70,229,.35)}
+.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:3px;width:26px;height:26px;border-radius:50%;background:var(--g-hero);color:#fff;font-weight:800;font-size:10pt;display:flex;align-items:center;justify-content:center;font-family:Sora;}
 .steps li b{color:var(--ind)}
 .call{display:inline-flex;width:100%;vertical-align:top;gap:10px;border-radius:12px;padding:9px 12px;margin:8px 0;font-size:10pt;break-inside:avoid;background:var(--soft);border-left:5px solid var(--ind)}
 .call .ic{font-size:14pt;line-height:1.2}
@@ -132,7 +132,7 @@ mark,.hl{background:linear-gradient(104deg,rgba(253,224,71,0) 0.9%,rgba(253,224,
 .card b{color:var(--ind);display:block;margin-bottom:3px}.card p{margin:0;font-size:9.8pt}
 
 /* ---------- sticky notes, did-you-know, quests, badges ---------- */
-.sticky{display:inline-block;background:#FEF08A;color:#3F3A12;padding:12px 14px 14px;width:58mm;font-size:9.5pt;line-height:1.4;box-shadow:3px 6px 14px rgba(0,0,0,.18);transform:rotate(-2deg);margin:6px 8px 10px 0;position:relative;font-family:"Caveat",Inter,sans-serif;font-size:12.5pt}
+.sticky{display:inline-block;background:#FEF08A;color:#3F3A12;padding:12px 14px 14px;width:58mm;font-size:9.5pt;line-height:1.4;box-shadow:3px 4px 0 rgba(0,0,0,.10);transform:rotate(-2deg);margin:6px 8px 10px 0;position:relative;font-family:"Caveat",Inter,sans-serif;font-size:12.5pt}
 .sticky.pink{background:#FBCFE8;color:#4A1D3A;transform:rotate(1.5deg)}.sticky.blue{background:#BAE6FD;color:#0C3B57;transform:rotate(-1deg)}.sticky.green{background:#BBF7D0;color:#14402B;transform:rotate(2deg)}
 .sticky::before{content:"";position:absolute;left:50%;top:-7px;width:34px;height:14px;margin-left:-17px;background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.08);transform:rotate(-2deg)}
 .sticky b{font-family:Sora;font-size:9pt;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:3px}
@@ -152,28 +152,28 @@ mark,.hl{background:linear-gradient(104deg,rgba(253,224,71,0) 0.9%,rgba(253,224,
 
 /* ---------- figures, pins, lenses ---------- */
 figure{margin:10px 0 12px;break-inside:avoid}
-.win{display:inline-block;width:100%;vertical-align:top;border-radius:12px;overflow:hidden;border:1px solid var(--line);box-shadow:0 10px 28px rgba(27,31,59,.14);background:#fff}
+.win{display:inline-block;width:100%;vertical-align:top;border-radius:12px;overflow:hidden;border:1px solid var(--line);box-shadow:0 3px 0 rgba(27,31,59,.10);background:#fff}
 .win .bar{height:18px;background:linear-gradient(#F6F7FB,#ECEEF6);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:5px;padding:0 9px}
 .win .bar i{width:8px;height:8px;border-radius:50%;display:block}.win .bar i:nth-child(1){background:#FF5F57}.win .bar i:nth-child(2){background:#FEBC2E}.win .bar i:nth-child(3){background:#28C840}
 .win img{width:100%;display:block}
 figure.desk .win{width:92%}figure.small{width:60%}figure.small .win{width:100%}
 figcaption{font-size:9pt;color:var(--mut);margin-top:6px;line-height:1.4}
-.phone{width:54mm;border-radius:16px;border:3px solid #1B1F3B;background:#1B1F3B;padding:3px;overflow:hidden;box-shadow:0 10px 26px rgba(27,31,59,.3);flex:0 0 auto;position:relative}
+.phone{width:54mm;border-radius:16px;border:3px solid #1B1F3B;background:#1B1F3B;padding:3px;overflow:hidden;box-shadow:0 3px 0 rgba(27,31,59,.25);flex:0 0 auto;position:relative}
 .phone img{width:100%;display:block;border-radius:12px;max-height:118mm;object-fit:cover;object-position:top}
 figure.phones .row{display:inline-flex;width:100%;gap:8mm;justify-content:flex-start;vertical-align:top}
 figure.phone-fig{display:inline-flex;width:100%;gap:8mm;align-items:flex-start;vertical-align:top}figure.phone-fig figcaption{margin-top:6mm;max-width:90mm}
 .pinwrap{position:relative;display:inline-block;width:100%}
-.pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:9.5pt;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);font-family:Sora;z-index:2}
+.pin{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--coral);color:#fff;font-weight:800;font-size:9.5pt;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 0 rgba(0,0,0,.35);font-family:Sora;z-index:2}
 .pin::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid rgba(249,115,22,.55)}
-.tip{position:absolute;z-index:3;background:#1B1F3B;color:#fff;font-size:8pt;font-weight:600;border-radius:7px;padding:3px 8px;white-space:nowrap;transform:translate(14px,-50%);box-shadow:0 4px 12px rgba(0,0,0,.3)}
-.tip::before{content:"";position:absolute;left:-5px;top:50%;margin-top:-5px;border:5px solid transparent;border-right-color:#1B1F3B;border-left:0}
-.tip.l{transform:translate(calc(-100% - 14px),-50%)}.tip.l::before{left:auto;right:-5px;border-right:0;border-left:5px solid #1B1F3B}
+.pinwrap .tip{position:absolute;z-index:3;background:#1B1F3B;color:#fff;font-size:8pt;font-weight:600;border-radius:7px;padding:3px 8px;white-space:nowrap;transform:translate(14px,-50%)}
+.pinwrap .tip::before{content:"";position:absolute;left:-5px;top:50%;margin-top:-5px;border:5px solid transparent;border-right-color:#1B1F3B;border-left:0}
+.pinwrap .tip.l{transform:translate(calc(-100% - 14px),-50%)}.pinwrap .tip.l::before{left:auto;right:-5px;border-right:0;border-left:5px solid #1B1F3B}
 .legend{columns:2;column-gap:10mm;margin:6px 0 0;padding:0;list-style:none;font-size:9.3pt}
 .legend li{padding:2px 0 2px 26px;position:relative;break-inside:avoid}
 .legend li i{position:absolute;left:0;top:3px;width:18px;height:18px;border-radius:50%;background:var(--coral);color:#fff;font-style:normal;font-weight:800;font-size:8.5pt;display:flex;align-items:center;justify-content:center;font-family:Sora}
 .lens-wrap{display:inline-block;width:100%;vertical-align:top;margin:8px 0 12px}.lens-row{display:flex;gap:10mm;align-items:center}
-.lens{width:46mm;height:46mm;border-radius:50%;border:5px solid #fff;box-shadow:0 0 0 2px var(--cy),0 12px 30px rgba(6,182,212,.35);background-repeat:no-repeat;position:relative;flex:0 0 auto}
-.lens::after{content:"🔍";position:absolute;right:-6px;bottom:-6px;background:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12pt;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+.lens{width:46mm;height:46mm;border-radius:50%;border:5px solid #fff;box-shadow:0 0 0 2px var(--cy);background-repeat:no-repeat;position:relative;flex:0 0 auto}
+.lens::after{content:"🔍";position:absolute;right:-6px;bottom:-6px;background:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12pt;box-shadow:0 1px 0 rgba(0,0,0,.25)}
 .lens-txt{font-size:9.8pt}.lens-txt b{color:var(--teal);font-family:Sora;display:block;margin-bottom:2px}
 
 /* ---------- tables, diagrams, faq ---------- */
@@ -214,7 +214,7 @@ table{font-size:10.2pt}th{font-size:9.4pt}th,td{padding:6px 9px}
 figure{margin:11px 0 14px}
 figcaption{font-size:9.8pt;color:#3E4560;margin-top:7px;line-height:1.45}
 .lens-txt{font-size:10.4pt}
-.tip{font-size:8.6pt}
+.pinwrap .tip{font-size:8.6pt}
 .sticky{font-size:13pt}
 /* screenshots: the full text width, cropped to their content, never taller than they need to be */
 figure.desk .win{width:100%}
@@ -243,3 +243,36 @@ figure.phones .row{gap:6mm}
 .pair .win img{max-height:96mm}
 figure.small{width:62%}
 .keep{break-inside:avoid}
+
+/* ======================= v1.5: larger type, safer pagination ======================= */
+body{font-size:12pt;line-height:1.6}
+.small{font-size:10.4pt}code{font-size:10.6pt}
+.ch-sub{font-size:12pt}.chapter h1{font-size:23pt}.prog{font-size:9.6pt}.ch-part{font-size:9pt}
+.glance b{font-size:9.6pt}
+.call{font-size:11.6pt}.dyk{font-size:11.4pt}.dyk b{font-size:10pt}
+.card p{font-size:11.4pt}
+.quest li{font-size:11.6pt}.quest .xp{font-size:9.6pt}
+.badge{font-size:10.6pt}
+table{font-size:11pt}th{font-size:10pt}th,td{padding:7px 10px}
+.legend{font-size:11pt}.legend li i{width:21px;height:21px;font-size:9.6pt}.legend li{padding:3px 0 3px 31px}
+figcaption{font-size:10.6pt}
+.lens-txt{font-size:11.4pt}
+.steps li{padding:6px 0 9px 44px}.steps li::before{width:30px;height:30px;font-size:11.5pt}
+.sticky{font-size:14pt}
+.toc-grid{font-size:10.8pt}.toc-part{font-size:11pt}.toc-note{font-size:10pt}
+p,li{orphans:3;widows:3}
+table{break-inside:auto}tr{break-inside:avoid}thead{display:table-header-group}
+table.nobreak{break-inside:avoid}
+.chapter.brk{page-break-before:always;margin-top:0}
+/* the two front pages keep their v1.4 sizes so each fits on one page */
+.colophon{font-size:10.6pt;line-height:1.5}
+.colophon table{font-size:10pt}.colophon th{font-size:9.4pt}.colophon th,.colophon td{padding:5px 9px}
+.toc-grid{font-size:10.2pt}.toc-part{font-size:10.4pt}.toc-note{font-size:9.4pt}
+.toc-row .t{flex:0 1 auto}.toc-row .dots{flex:1}
+.toc .box{border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:7mm 0 0;background:var(--soft);font-size:10pt;line-height:1.5;break-inside:avoid}
+.toc .box ul{margin:4px 0 0;padding-left:18px}
+.toc-row{padding:1.5px 0}.toc-part{margin:6px 0 3px;padding:4px 10px}.toc h1{margin-bottom:4mm}
+.toc .box{margin:4mm 0 0;padding:9px 14px;font-size:9.8pt;line-height:1.45}.toc-note{margin-top:3mm}
+.colophon .box{margin:6px 0;padding:11px 16px}.colophon th,.colophon td{padding:4px 8px}.colophon table{font-size:9.8pt}.colophon .credit-card{margin-bottom:4px}
+.chapter .box{border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:10px 0;background:var(--soft);font-size:11pt;line-height:1.5;break-inside:avoid}
+.chapter .box ul{margin:4px 0 0;padding-left:18px}

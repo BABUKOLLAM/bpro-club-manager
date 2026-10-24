@@ -8,7 +8,7 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 IMG = "img"
 e = html.escape
-VERSION = "1.4"
+VERSION = "1.5"
 VERSION_DATE = "October 2026"
 CREDIT_NAME = "Dr. Babu B"
 CREDIT_QUALS = "MBA, MPhil, PGDTRM, PGDHRM, Ph.D. (UGC-NET)"
@@ -17,7 +17,7 @@ CREDIT_SITES = ["www.bpropms.com", "www.drbabu.in", "www.bprohrms.com", "www.cop
 _SIZES = {}
 LOGO_WHITE = "brand/bpro-logo-white.png"
 LOGO_NAVY = "brand/bpro-logo-navy.png"
-HISTORY = [  # version, date, what changed (ten releases over twenty months)
+HISTORY = [  # version, date, what changed (eleven releases over twenty months)
     ("0.2", "February 2025", "Discovery: workshops with three clubs in Kottayam, audit of paper registers and WhatsApp groups; requirements for membership, library and events agreed."),
     ("0.4", "June 2025", "Pilot: membership register with online application, approval and numbering; Malayalam interface; e-card prototype; first club live."),
     ("0.6", "September 2025", "Library and reading room; events with registration and reminders; WhatsApp / SMS / e-mail outbox; family details and blood groups."),
@@ -28,6 +28,7 @@ HISTORY = [  # version, date, what changed (ten releases over twenty months)
     ("1.2", "October 2026", "Full-bleed cover, decorative page frames, the Bpro logo, release history."),
     ("1.3", "October 2026", "Society accounts (statements, cash book, year close, Tally), the Library Council pack, and a new part on residents' associations: units, maintenance billing, helpdesk."),
     ("1.4", "October 2026", "Readability edition: larger type and screenshots cropped to their content, a calmer cover, full-bleed part openers with chapter lists, a running header, page numbers and PDF bookmarks, pages that fill."),
+    ("1.5", "October 2026", "Pagination and type: larger text throughout, chapters that would start low on a page begin the next one, tables kept whole, tip boxes and sticky notes drawn cleanly in every PDF viewer."),
 ]
 
 
@@ -126,6 +127,7 @@ def glance(items):
 
 
 def table(head, rows, cls=""):
+    cls = (cls + " nobreak").strip() if len(rows) <= 12 else cls
     return f"<table class='{cls}'><thead><tr>" + "".join(f"<th>{h}</th>" for h in head) + "</tr></thead><tbody>" + \
         "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows) + "</tbody></table>"
 
@@ -141,6 +143,7 @@ def close():
 
 
 TOTAL_CH = 49
+FORCE = set()   # chapters that must start a fresh page (found by measuring the first render)
 PAGES = {}   # chapter number -> page, filled by the second pass
 
 
@@ -149,7 +152,7 @@ def chapter(num, title, sub, part):
     _open[0] = True
     letter = part.split(" ")[1] if part.startswith("Part ") else "A"
     pct = int(num / TOTAL_CH * 100)
-    return pre + f"<section class='chapter' id='c{num}' data-ch='{num}'><div class='ch-head {letter}'><div class='ch-num'>{num:02d}</div><div class='ch-part'>{e(part)}</div><h1>{e(title)}</h1><p class='ch-sub'>{e(sub)}</p>" \
+    return pre + f"<section class='chapter{" brk" if num in FORCE else ""}' id='c{num}' data-ch='{num}'><div class='ch-head {letter}'><div class='ch-num'>{num:02d}</div><div class='ch-part'>{e(part)}</div><h1>{e(title)}</h1><p class='ch-sub'>{e(sub)}</p>" \
         f"<div class='prog'><span>Chapter {num} of {TOTAL_CH}</span><span class='bar'><i style='width:{pct}%'></i></span><span class='xp'>+10 XP</span></div></div>"
 
 
@@ -279,6 +282,13 @@ def pair_small(pieces):
     return out
 
 
+FURNITURE = """<div class='box'><b>How the pages work</b><ul>
+<li><b>Header, footer and bookmarks:</b> the header names the part and chapter, the footer gives the page number, and the PDF sidebar jumps to any chapter. The <b>barcode</b> (for example <code>CLUBPRO-HB-{VERSION}-P007</code>) traces a printed page to its edition.</li>
+<li><b>Progress bar, XP, missions and badges</b> show how far you are; missions are things to try in the app.</li>
+<li><b>Pointers</b> are numbered and explained under the picture; <b>lenses</b> zoom into one control; <b>sticky notes</b> carry an experienced secretary's advice; <span class='hl'>highlighted text</span> is the thing to remember.</li></ul></div>
+""".replace('{VERSION}', VERSION)
+
+
 # ---------- content ----------
 def build():
     P = []  # pieces
@@ -293,12 +303,6 @@ def build():
 <div class='credit-card'><img class='logo' src='{LOGO_WHITE}' alt='Bpro'><div><b>Designed &amp; Developed by {CREDIT_NAME}</b>{CREDIT_QUALS}<br>{CREDIT_ORG}<div class='sites'>{''.join(f'<span>{x}</span>' for x in CREDIT_SITES)}</div></div></div>
 <div class='box'><b>Release history</b><table class='version-table'><tr><th>Version</th><th>Date</th><th>What changed</th></tr>
 {''.join(f"<tr><td>{v}</td><td>{d}</td><td>{w}</td></tr>" for v, d, w in reversed(HISTORY))}</table></div>
-<div class='box'><b>How the page furniture works</b><ul style='margin:4px 0 0;padding-left:18px'>
-<li>The <b>running header</b> names the part and the chapter you are in; the <b>footer</b> shows the page number and how many pages there are; the PDF's <b>bookmarks</b> (sidebar) jump to any part or chapter.</li>
-<li><b>Barcode</b> at the foot of every page encodes the handbook version and page (for example <code>CLUBPRO-HB-{VERSION}-P007</code>), so a photographed or printed page can always be traced to its edition.</li>
-<li><b>Progress bar and XP</b> in each chapter head show how far you are through the book; <b>missions</b> at the end of chapters are things to try in the app; <b>badges</b> mark what you can do once a part is finished.</li>
-<li><b>Pointers</b> on screenshots are numbered and explained under the picture; <b>lenses</b> zoom into one control; <b>sticky notes</b> carry the advice an experienced secretary would give you.</li>
-<li><span class='hl'>Highlighted text</span> is the thing to remember from a paragraph.</li></ul></div>
 <p class='small'>ClubPro is a product of {CREDIT_ORG}. Screens shown are from a demonstration club; names are fictitious. © {VERSION_DATE.split()[-1]} {CREDIT_ORG}.</p></section>""")
     # ----- contents -----
     toc = TOC
@@ -326,6 +330,7 @@ def build():
     A(tip("<b>Malayalam</b> — the Malayalam name of the screen or button, as members see it.", "ml"))
     A(aside(badges([("🎓", "Level 1 · Member", ""), ("🏅", "Level 2 · Office bearer", "gold"), ("🛠️", "Level 3 · Operator", "teal"), ("📚", "Reference", "pink")]),
                 sticky("Each part is a level. Finish a level's missions in the app and you have earned its badge. No account on earth is checking; it is a way to make sure you tried every screen once.", "pink", "Why levels?")))
+    A(FURNITURE)
     A(chapter(2, "Three kinds of reader", "What each person sees", "Part A · Welcome"))
     A("""<p>Everyone opens the same web address. What appears depends on who signs in:</p>""")
     A(table(["Who", "Signs in with", "Sees", "Typical device"],
@@ -938,6 +943,24 @@ def find_pages(pdf_path):
     return pages
 
 
+def find_heads(pdf_path):
+    """Chapter number -> (page, how far down the page its head starts, 0 to 1 of the text area), read from a render."""
+    import pdfplumber
+    import re as _re
+    out = {}
+    with pdfplumber.open(pdf_path) as pdf:
+        for i, page in enumerate(pdf.pages, 1):
+            text_top = 62.0
+            area = page.height - 62.0 - 71.0
+            words = page.extract_words()
+            for k, w in enumerate(words):
+                if w["text"] == "Chapter" and k + 3 < len(words) and words[k + 2]["text"] == "of" and words[k + 3]["text"] == str(TOTAL_CH):
+                    num = int(words[k + 1]["text"])
+                    if num not in out:
+                        out[num] = (i, max(0.0, (w["top"] - 85 - text_top) / area))
+    return out
+
+
 def _where(i):
     """The chapter a page belongs to: the last chapter that starts on or before page i (1-based), or None."""
     best = None
@@ -1071,9 +1094,16 @@ def full_build():
     body_pdf = os.path.join(HERE, "_body.pdf")
     build()
     subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)      # pass 1: layout
+    for _ in range(3):      # a chapter whose head would start in the lower part of a page starts the next page instead
+        late = {n for n, (pg, y) in find_heads(body_pdf).items() if y > 0.58 and n not in FORCE}
+        if not late:
+            break
+        FORCE.update(late)
+        build()
+        subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)
     PAGES.update(find_pages(body_pdf))
     build()
-    subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)      # pass 2: contents with page numbers
+    subprocess.run(["node", render, os.path.join(HERE, "handbook.html"), body_pdf], check=True)      # last pass: contents with page numbers
     PAGES.update(find_pages(body_pdf))
     info = scan_body(body_pdf)
     # the cover, the part openers and the back cover: full-bleed pages rendered on their own and swapped in for the placeholders
