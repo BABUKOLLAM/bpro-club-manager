@@ -23,6 +23,8 @@ def run_daily(force=False):
             # birthdays
             ids = [r["id"] for r in db.q("SELECT id FROM members WHERE status='active' AND substr(dob,6,5)=?", (t[5:],))]
             out["birthdays"] = comms.notify_members(c, ids, "birthday", {}, ("app", "whatsapp"), ref_kind="birthday", batch_id=comms.new_batch())
+            from . import assoc
+            out["late_fees"] = assoc.apply_late_fees(c) if assoc.feature("maintenance") else 0
             # event reminders, N days before
             days = int(db.setting("reminder_days_before_event"))
             target = (today + dt.timedelta(days=days)).isoformat()

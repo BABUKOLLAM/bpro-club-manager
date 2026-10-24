@@ -1256,3 +1256,106 @@ def test_library_council_pack_and_grants(admin):
     assert admin.get("/api/council/status?fy=2025-26").json()["metrics"]["grants"] == []
     mc = login("9847012345", "ramesh-pass-1")
     assert mc.get("/api/council/status").status_code == 403 and mc.get("/api/council/grants").status_code == 403
+
+
+def test_association_mode_units_maintenance_helpdesk(admin):
+    """Switch the club to a residents' association: units, residents on units, monthly maintenance billed per unit and
+    settled oldest-first by receipts, late fees, defaulters and reminders, the unit statement, and the helpdesk."""
+    today = dt.date.today()
+    r = admin.post("/api/settings", json={"org_kind": "association", "wards": ["A", "B"], "maint_basis": "sqft", "maint_rate": "2", "maint_period": "monthly", "maint_due_day": "5", "maint_late_fee": "100"}, headers=H)
+    assert r.status_code == 200, r.text
+    info = admin.get("/api/public/info").json()
+    assert info["org_kind"] == "association" and info["features"] == {"library": False, "units": True, "maintenance": True, "helpdesk": True}
+    # a building in one go, then one unit edited
+    r = admin.post("/api/units/bulk", json={"lines": "A,101,1,2BHK,950\nA,102,1,3BHK,1200\nB,201,2,2BHK,950\nB,201,2,2BHK,950"}, headers=H)
+    assert r.json()["created"] == 3
+    units = admin.get("/api/units").json()
+    a101 = next(u for u in units if u["label"] == "A-101"); b201 = next(u for u in units if u["label"] == "B-201")
+    assert admin.post("/api/units", json={"id": b201["id"], "block": "B", "unit_no": "201", "utype": "2BHK", "area_sqft": 950, "owner_name": "Thomas", "maint_override": 1500}, headers=H).status_code == 200
+    assert admin.post("/api/units", json={"block": "A", "unit_no": "101"}, headers=H).status_code == 409
+    # residents: Ramesh owns A-101; a new owner registers B-201 herself; the office puts Second as tenant of A-102
+    members = admin.get("/api/members?status=active").json()
+    ramesh = next(m for m in members if m["name_en"] == "Ramesh Kumar"); second = next(m for m in members if m["name_en"] == "Second")
+    assert admin.post(f"/api/units/{a101['id']}/residents", json={"member_id": ramesh["id"], "occupancy": "owner"}, headers=H).status_code == 200
+    a102 = next(u for u in units if u["label"] == "A-102")
+    admin.put(f"/api/members/{second['id']}", json={"unit_id": a102["id"], "occupancy": "tenant"}, headers=H)
+    anon = TestClient(app)
+    r = anon.post("/api/public/apply", json={"name_en": "Mary Thomas", "phone": "9847099001", "password": "mary-pass-11", "ward": "B", "unit_no": "201", "unit_block": "B", "occupancy": "owner", "lang": "en"}, headers=H)
+    assert r.status_code == 200, r.text
+    mary = r.json()["id"]
+    assert admin.post(f"/api/members/{mary}/decide", json={"decision": "approve"}, headers=H).status_code == 200
+    m = admin.get(f"/api/members/{mary}").json()
+    assert m["unit"]["label"] == "B-201" and m["occupancy"] == "owner" and m["house_en"] == "B-201"
+    r = anon.post("/api/public/apply", json={"name_en": "New Block", "phone": "9847099002", "password": "new-pass-111", "unit_no": "301", "unit_block": "C", "occupancy": "tenant"}, headers=H)
+    assert r.status_code == 200 and any(u["label"] == "C-301" for u in admin.get("/api/units").json())
+    assert admin.get(f"/api/units/{a101['id']}").json()["residents"][0]["name_en"] == "Ramesh Kumar"
+    assert admin.get(f"/api/members?unit_id={a102['id']}").json()[0]["unit"] == "A-102"
+    # billing: two months, per sq ft; B-201 has an override; C-301 has no area yet so gets no bill
+    p1, p2 = f"{today.year - 1}-11", f"{today.year - 1}-12"
+    assert admin.post("/api/maintenance/generate", json={"period": p1}, headers=H).json()["created"] == 3
+    assert admin.post("/api/maintenance/generate", json={"period": p1}, headers=H).json()["created"] == 0
+    assert admin.post("/api/maintenance/generate", json={"period": p2}, headers=H).json()["created"] == 3
+    mt = admin.get(f"/api/maintenance?period={p1}").json()
+    bills = {b["label"]: b for b in mt["bills"]}
+    assert bills["A-101"]["amount"] == 1900 and bills["B-201"]["amount"] == 1500 and bills["A-102"]["amount"] == 2400 and mt["totals"]["units"] == 3 and mt["active_units"] == 4
+    # late fees apply to the past-due bills once
+    from app import assoc, scheduler
+    assert assoc.apply_late_fees() == 6 and assoc.apply_late_fees() == 0
+    assert scheduler.run_daily(force=True)["late_fees"] == 0
+    # Ramesh pays 2500: November (1900 + 100) settles fully, December gets 500 of its 2000
+    r = admin.post("/api/finance/transactions", json={"kind": "receipt", "head": "maintenance", "member_id": ramesh["id"], "amount": 2500, "mode": "upi", "ref": "UPI-M1", "notify": False}, headers=H)
+    assert r.status_code == 200, r.text
+    rid = r.json()["id"]
+    u = admin.get(f"/api/units/{a101['id']}").json()
+    by = {b["period"]: b for b in u["bills"]}
+    assert by[p1]["status"] == "paid" and by[p1]["paid"] == 2000 and by[p2]["paid"] == 500 and by[p2]["status"] == "due" and u["dues"] == 1500
+    assert u["receipts"][0]["id"] == rid
+    # voiding the receipt reopens both bills; paying again settles them
+    admin.post(f"/api/finance/transactions/{rid}/void", json={"note": "wrong unit"}, headers=H)
+    assert admin.get(f"/api/units/{a101['id']}").json()["dues"] == 4000
+    admin.post("/api/finance/transactions", json={"kind": "receipt", "head": "maintenance", "unit_id": a101["id"], "party": "Ramesh (cash)", "amount": 4000, "mode": "cash", "notify": False}, headers=H)
+    assert admin.get(f"/api/units/{a101['id']}").json()["dues"] == 0
+    # defaulters and reminders; a waived bill drops out
+    d = admin.get("/api/maintenance/defaulters").json()
+    assert {x["label"] for x in d} == {"A-102", "B-201"} and next(x for x in d if x["label"] == "B-201")["due"] == 3200
+    fresh()
+    r = admin.post("/api/maintenance/remind", json={"channels": ["whatsapp"]}, headers=H).json()
+    assert r["units"] == 2 and r["queued"] >= 2
+    flush()
+    assert any("Maintenance" in subj and "B-201" in body for ch, to, subj, body in SENT if ch == "whatsapp")
+    bid = next(b["id"] for b in admin.get(f"/api/maintenance?period={p1}").json()["bills"] if b["label"] == "A-102")
+    admin.post(f"/api/maintenance/bills/{bid}", json={"waive": True, "note": "vacant in November"}, headers=H)
+    assert next(x for x in admin.get("/api/maintenance/defaulters").json() if x["label"] == "A-102")["periods"] == 1
+    # the resident sees her unit's bills and can print the statement; a member of another unit cannot
+    mc = login("9847099001", "mary-pass-11")
+    mine = mc.get("/api/finance/mine").json()["maintenance"]
+    assert mine["unit"]["label"] == "B-201" and mine["due"] == 3200
+    assert mc.get(f"/api/units/{b201['id']}/statement?lang=en").status_code == 200 and "Statement of account" in mc.get(f"/api/units/{b201['id']}/statement?lang=en").text
+    assert mc.get(f"/api/units/{a101['id']}/statement").status_code == 403
+    assert "3,200.00" in admin.get(f"/api/units/{b201['id']}/statement?lang=ml").text
+    # helpdesk: a resident raises a complaint, the office works it, she closes it
+    fresh()
+    r = mc.post("/api/tickets", json={"category": "plumbing", "title": "Kitchen tap leaking", "details": "Since Monday", "priority": "high"}, headers=H)
+    assert r.status_code == 200 and r.json()["no"].startswith(f"T/{today.year}/")
+    tid = r.json()["id"]
+    t = mc.get(f"/api/tickets/{tid}").json()
+    assert t["unit"] == "B-201" and t["status"] == "open" and "staff" not in t
+    assert mc.post(f"/api/tickets/{tid}", json={"status": "resolved"}, headers=H).status_code == 403
+    staff = admin.get(f"/api/tickets/{tid}").json()["staff"]
+    assert admin.post(f"/api/tickets/{tid}", json={"status": "in_progress", "assigned_to": staff[0]["id"], "note": "Plumber booked for tomorrow"}, headers=H).status_code == 200
+    flush()
+    assert any("in_progress" in body and "Plumber" in body for ch, to, subj, body in SENT if ch == "whatsapp")
+    admin.post(f"/api/tickets/{tid}", json={"status": "resolved"}, headers=H)
+    assert mc.post(f"/api/tickets/{tid}", json={"status": "closed", "note": "Thanks, fixed"}, headers=H).status_code == 200
+    t = admin.get(f"/api/tickets/{tid}").json()
+    assert t["status"] == "closed" and len(t["notes_list"]) == 3 and t["assignee"] == staff[0]["name"]
+    lst = admin.get("/api/tickets").json()
+    assert lst["counts"]["closed"] >= 1 and lst["rows"][0]["unit"] == "B-201"
+    assert mc.get("/api/tickets").json()["rows"][0]["id"] == tid and "counts" in mc.get("/api/tickets").json()
+    ramesh_c = login("9847012345", "ramesh-pass-1")
+    assert ramesh_c.get(f"/api/tickets/{tid}").status_code == 403
+    assert ramesh_c.get("/api/dashboard").json()["assoc"]["tickets_open"] == 0
+    assert admin.get("/api/dashboard").json()["assoc"]["units"] == 4
+    # back to club mode: the library returns, the association screens switch off
+    admin.post("/api/settings", json={"org_kind": "club"}, headers=H)
+    assert admin.get("/api/public/info").json()["features"]["library"] is True

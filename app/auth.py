@@ -29,6 +29,7 @@ PERMS = {
     "finance.view":       {"admin", "president", "secretary", "treasurer"},
     "finance.manage":     {"admin", "secretary", "treasurer"},
     "finance.close":      {"admin", "treasurer"},
+    "helpdesk.manage":    {"admin", "president", "secretary"},
     "reports.view":       {"admin", "president", "secretary", "treasurer", "librarian"},
     "outbox.view":        {"admin", "president", "secretary"},
     "users.manage":       {"admin", "secretary"},

@@ -74,6 +74,18 @@ TEMPLATES = {
         "en": ("Receipt {no}", "Dear {name}, received Rs {amount} towards {head} on {date}. Receipt No {no}. Thank you. - {club}"),
         "ml": ("രസീത് {no}", "പ്രിയ {name}, {date}-ന് {head} ഇനത്തിൽ Rs {amount} ലഭിച്ചു. രസീത് നമ്പർ {no}. നന്ദി. - {club}"),
     },
+    "maintenance_due": {
+        "en": ("Maintenance due", "Dear {name}, maintenance of Rs {amount} for unit {unit} ({periods} period(s)) is due. Kindly pay at the office or through the app. - {club_short}"),
+        "ml": ("മെയിന്റനൻസ് അടയ്ക്കാനുണ്ട്", "പ്രിയ {name}, യൂണിറ്റ് {unit}-ന്റെ മെയിന്റനൻസ് Rs {amount} ({periods} കാലയളവ്) അടയ്ക്കാനുണ്ട്. ഓഫീസിലോ ആപ്പിലൂടെയോ അടയ്ക്കുക. - {club_short}"),
+    },
+    "ticket_created": {
+        "en": ("Complaint {no} received", "Dear {name}, your complaint '{title}' is registered as {no}. We will update you here. - {club_short}"),
+        "ml": ("പരാതി {no} ലഭിച്ചു", "പ്രിയ {name}, താങ്കളുടെ പരാതി '{title}' {no} ആയി രേഖപ്പെടുത്തി. പുരോഗതി ഇവിടെ അറിയിക്കും. - {club_short}"),
+    },
+    "ticket_update": {
+        "en": ("Complaint {no}: {status}", "Dear {name}, complaint {no} '{title}' is now {status}. {note} - {club_short}"),
+        "ml": ("പരാതി {no}: {status}", "പ്രിയ {name}, പരാതി {no} '{title}' ഇപ്പോൾ {status}. {note} - {club_short}"),
+    },
     "subscription_due": {
         "en": ("Subscription due", "Dear {name}, your {year} annual subscription of Rs {amount} is due. Kindly pay at the club office. - {club_short}"),
         "ml": ("വരിസംഖ്യ അടയ്ക്കാനുണ്ട്", "പ്രിയ {name}, {year} വർഷത്തെ വാർഷിക വരിസംഖ്യ Rs {amount} അടയ്ക്കാനുണ്ട്. ക്ലബ്ബ് ഓഫീസിൽ അടയ്ക്കുക. - {club_short}"),
@@ -156,6 +168,13 @@ KIND_LABELS = {
 
 HEAD_LABELS = {
     "admission": {"en": "Admission fee", "ml": "പ്രവേശന ഫീസ്"},
+    "maintenance": {"en": "Maintenance charges", "ml": "മെയിന്റനൻസ് ചാർജ്"},
+    "sinking_fund": {"en": "Sinking fund", "ml": "സിങ്കിംഗ് ഫണ്ട്"},
+    "parking_charges": {"en": "Parking charges", "ml": "പാർക്കിംഗ് ചാർജ്"},
+    "security_services": {"en": "Security services", "ml": "സെക്യൂരിറ്റി സേവനം"},
+    "housekeeping": {"en": "Housekeeping & waste", "ml": "ഹൗസ്കീപ്പിംഗ് & മാലിന്യം"},
+    "lift_amc": {"en": "Lift, generator & AMCs", "ml": "ലിഫ്റ്റ്, ജനറേറ്റർ & AMC"},
+    "water_supply": {"en": "Water supply", "ml": "ജലവിതരണം"},
     "subscription": {"en": "Annual subscription", "ml": "വാർഷിക വരിസംഖ്യ"},
     "donation": {"en": "Donation", "ml": "സംഭാവന"},
     "event_fee": {"en": "Event fee", "ml": "പരിപാടി ഫീസ്"},
@@ -177,12 +196,12 @@ HEAD_LABELS = {
     "bank_charges": {"en": "Bank charges", "ml": "ബാങ്ക് ചാർജുകൾ"},
     "rent": {"en": "Rent & utilities", "ml": "വാടക & യൂട്ടിലിറ്റി"},
     "salary": {"en": "Salary & honorarium", "ml": "ശമ്പളം & ഓണറേറിയം"},
-    "maintenance": {"en": "Maintenance", "ml": "അറ്റകുറ്റപ്പണി"},
+    "repairs": {"en": "Repairs & maintenance", "ml": "അറ്റകുറ്റപ്പണി"},
     "charity": {"en": "Charity & welfare", "ml": "ജീവകാരുണ്യം & ക്ഷേമം"},
     "other_expense": {"en": "Other expense", "ml": "മറ്റ് ചെലവ്"},
 }
-RECEIPT_HEADS = ["admission", "subscription", "donation", "event_fee", "library_fine", "library_deposit", "sponsorship", "grant", "bank_interest", "building_fund", "other_income"]
-PAYMENT_HEADS = ["event_expense", "books", "newspapers", "rent", "electricity", "salary", "printing", "maintenance", "charity", "furniture", "building", "deposit_refund", "bank_charges", "other_expense"]
+RECEIPT_HEADS = ["admission", "subscription", "maintenance", "sinking_fund", "parking_charges", "donation", "event_fee", "library_fine", "library_deposit", "sponsorship", "grant", "bank_interest", "building_fund", "other_income"]
+PAYMENT_HEADS = ["event_expense", "books", "newspapers", "rent", "electricity", "water_supply", "security_services", "housekeeping", "lift_amc", "salary", "printing", "repairs", "charity", "furniture", "building", "deposit_refund", "bank_charges", "other_expense"]
 
 
 class _Safe(dict):

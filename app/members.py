@@ -20,7 +20,7 @@ RELATIONS = ["spouse", "son", "daughter", "father", "mother", "brother", "sister
 STATUSES = ["applied", "active", "inactive", "suspended", "resigned", "deceased", "rejected"]
 EDITABLE = ["name_en", "name_ml", "gender", "dob", "blood_group", "phone", "whatsapp", "email", "house_en", "house_ml", "address_en", "address_ml",
             "ward", "pincode", "occupation", "education", "interests", "id_proof", "photo", "notify_whatsapp", "notify_sms", "notify_email", "show_phone", "lang"]
-ADMIN_ONLY = ["membership_type", "notes", "joined_on", "introduced_by"]
+ADMIN_ONLY = ["membership_type", "notes", "joined_on", "introduced_by", "unit_id", "occupancy"]
 INTS = {"notify_whatsapp", "notify_sms", "notify_email", "show_phone"}
 
 
@@ -35,6 +35,10 @@ def clean(b, fields):
                 v = "".join(ch for ch in str(v or "") if ch.isdigit() or ch == "+")
             elif k == "lang":
                 v = v if v in ("en", "ml") else "ml"
+            elif k == "unit_id":
+                v = int(v) if v else None
+            elif k == "occupancy":
+                v = v if v in ("owner", "tenant", "family") else ""
             else:
                 v = (str(v) if v is not None else "").strip()
             out[k] = v
@@ -89,8 +93,15 @@ async def apply(request: Request):
         row["membership_type"] = "ordinary"
     now = time.time()
     row.update({"status": "applied", "applied_at": now, "created": now, "updated": now})
+    if b.get("occupancy") in ("owner", "tenant", "family"):
+        row["occupancy"] = b["occupancy"]
     lang = row.get("lang") or db.setting("default_lang")
     with db.tx() as c:
+        if b.get("unit_no"):
+            from . import assoc
+            row["unit_id"] = assoc.find_or_create_unit(c, b.get("unit_block") or row.get("ward"), b.get("unit_no"), b.get("unit_type"))
+            row.setdefault("house_en", "")
+            row["house_en"] = row["house_en"] or f"{(b.get('unit_block') or row.get('ward') or '').strip()}-{b['unit_no'].strip()}".strip("-")
         mid = db.insert(c, "members", row)
         login = phone_key(row["phone"])
         db.insert(c, "users", {"login": login, "name": row["name_en"], "role": "member", "pw_hash": auth.hash_pw(pw), "active": 0,
@@ -112,14 +123,17 @@ async def apply(request: Request):
 # ---------- lists ----------
 def _member_rows(where="1=1", args=(), order="m.name_en"):
     return db.q(f"SELECT m.*, (SELECT COUNT(*) FROM family f WHERE f.member_id=m.id AND f.deleted=0) AS family_count, "
+                f"(SELECT CASE WHEN u.block<>'' THEN u.block||'-'||u.unit_no ELSE u.unit_no END FROM units u WHERE u.id=m.unit_id) AS unit, "
                 f"(SELECT COUNT(*) FROM issues i WHERE i.member_id=m.id AND i.returned_on='') AS books_out, "
                 f"(SELECT COALESCE(SUM(amount-paid),0) FROM subscriptions s WHERE s.member_id=m.id AND s.status='due') AS dues "
                 f"FROM members m WHERE {where} ORDER BY {order}", args)
 
 
 @router.get("/members")
-def list_members(status: str = "", q: str = "", ward: str = "", mtype: str = "", blood: str = "", user=Depends(require("members.view"))):
+def list_members(status: str = "", q: str = "", ward: str = "", mtype: str = "", blood: str = "", unit_id: int = 0, user=Depends(require("members.view"))):
     where, args = ["1=1"], []
+    if unit_id:
+        where.append("m.unit_id=?"); args.append(unit_id)
     if status:
         where.append("m.status=?"); args.append(status)
     if ward:
@@ -157,7 +171,8 @@ def directory(q: str = "", blood: str = "", user=Depends(current_user)):
     if q:
         like = f"%{q.strip()}%"
         where.append("(name_en LIKE ? OR name_ml LIKE ? OR house_en LIKE ? OR house_ml LIKE ? OR ward LIKE ?)"); args += [like] * 5
-    rows = db.q(f"SELECT id, member_no, name_en, name_ml, house_en, house_ml, ward, blood_group, phone, whatsapp, show_phone, photo, membership_type, occupation "
+    rows = db.q(f"SELECT id, member_no, name_en, name_ml, house_en, house_ml, ward, blood_group, phone, whatsapp, show_phone, photo, membership_type, occupation, occupancy, "
+                f"(SELECT CASE WHEN u.block<>'' THEN u.block||'-'||u.unit_no ELSE u.unit_no END FROM units u WHERE u.id=members.unit_id) AS unit "
                 f"FROM members WHERE {' AND '.join(where)} ORDER BY name_en", args)
     for r in rows:
         if not r["show_phone"]:
@@ -181,6 +196,8 @@ def get_member(mid: int, user=Depends(current_user)):
     m["issues"] = db.q("SELECT i.*, b.title_en, b.title_ml, c.accession_no FROM issues i JOIN books b ON b.id=i.book_id JOIN copies c ON c.id=i.copy_id WHERE i.member_id=? ORDER BY i.id DESC LIMIT 50", (mid,))
     m["registrations"] = db.q("SELECT r.*, p.title_en, p.title_ml, p.starts_at FROM registrations r JOIN posts p ON p.id=r.post_id WHERE r.member_id=? ORDER BY r.id DESC LIMIT 50", (mid,))
     m["user"] = db.one("SELECT id, login, role, active, last_login FROM users WHERE member_id=?", (mid,))
+    u = db.one("SELECT * FROM units WHERE id=?", (m["unit_id"],)) if m.get("unit_id") else None
+    m["unit"] = {"id": u["id"], "label": (f"{u['block']}-{u['unit_no']}" if u["block"] else u["unit_no"]), "block": u["block"], "unit_no": u["unit_no"], "utype": u["utype"]} if u else None
     m["wa_link"] = comms.wa_link(m.get("whatsapp") or m.get("phone"))
     return m
 

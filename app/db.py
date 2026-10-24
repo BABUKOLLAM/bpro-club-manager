@@ -151,6 +151,17 @@ CREATE TABLE IF NOT EXISTS transactions(id INTEGER PRIMARY KEY, kind TEXT NOT NU
   note TEXT NOT NULL DEFAULT '', year INTEGER, created_by INTEGER, created REAL NOT NULL, void INTEGER NOT NULL DEFAULT 0, void_note TEXT NOT NULL DEFAULT '', notified_at REAL);
 CREATE INDEX IF NOT EXISTS ix_tx_date ON transactions(tx_date, kind);
 CREATE INDEX IF NOT EXISTS ix_tx_member ON transactions(member_id);
+CREATE TABLE IF NOT EXISTS units(id INTEGER PRIMARY KEY, block TEXT NOT NULL DEFAULT '', unit_no TEXT NOT NULL, floor TEXT NOT NULL DEFAULT '', utype TEXT NOT NULL DEFAULT '',
+  area_sqft REAL NOT NULL DEFAULT 0, parking TEXT NOT NULL DEFAULT '', owner_name TEXT NOT NULL DEFAULT '', owner_phone TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'occupied',
+  maint_override REAL NOT NULL DEFAULT 0, notes TEXT NOT NULL DEFAULT '', created REAL NOT NULL, updated REAL NOT NULL, UNIQUE(block, unit_no));
+CREATE TABLE IF NOT EXISTS maint_bills(id INTEGER PRIMARY KEY, unit_id INTEGER NOT NULL, period TEXT NOT NULL, amount REAL NOT NULL, late_fee REAL NOT NULL DEFAULT 0, paid REAL NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'due', due_on TEXT NOT NULL DEFAULT '', created REAL NOT NULL, reminded_at REAL, note TEXT NOT NULL DEFAULT '', UNIQUE(unit_id, period));
+CREATE INDEX IF NOT EXISTS ix_bills_status ON maint_bills(status, period);
+CREATE TABLE IF NOT EXISTS tickets(id INTEGER PRIMARY KEY, no TEXT UNIQUE, member_id INTEGER, unit_id INTEGER, category TEXT NOT NULL DEFAULT 'other', title TEXT NOT NULL, details TEXT NOT NULL DEFAULT '',
+  photo TEXT NOT NULL DEFAULT '', priority TEXT NOT NULL DEFAULT 'normal', status TEXT NOT NULL DEFAULT 'open', assigned_to INTEGER, created REAL NOT NULL, updated REAL NOT NULL, created_by INTEGER,
+  resolved_at REAL, closed_at REAL);
+CREATE INDEX IF NOT EXISTS ix_tickets_status ON tickets(status);
+CREATE TABLE IF NOT EXISTS ticket_notes(id INTEGER PRIMARY KEY, ticket_id INTEGER NOT NULL, user_id INTEGER, ts REAL NOT NULL, text TEXT NOT NULL DEFAULT '', status_change TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS fy_years(fy TEXT PRIMARY KEY, start_on TEXT NOT NULL, end_on TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', closed_at REAL, closed_by INTEGER,
   summary TEXT NOT NULL DEFAULT '{}', note TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS fy_openings(fy TEXT NOT NULL, item TEXT NOT NULL, amount REAL NOT NULL DEFAULT 0, side TEXT NOT NULL DEFAULT '', label_en TEXT NOT NULL DEFAULT '',
@@ -228,6 +239,9 @@ MIGRATIONS = [
     ("registrations", "team", "TEXT NOT NULL DEFAULT ''"),
     ("members", "team", "TEXT NOT NULL DEFAULT ''"),
     ("transactions", "grant_id", "INTEGER"),
+    ("transactions", "unit_id", "INTEGER"),
+    ("members", "unit_id", "INTEGER"),
+    ("members", "occupancy", "TEXT NOT NULL DEFAULT ''"),
 ]
 
 
@@ -289,6 +303,8 @@ def init():
                 cols = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
                 if col not in cols:
                     c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+            # the 'maintenance' head became the residents' maintenance charge (a receipt); repair vouchers move to 'repairs'
+            c.execute("UPDATE transactions SET head='repairs' WHERE kind='payment' AND head='maintenance'")
         finally:
             c.close()
         _initialized.add(s)
@@ -416,6 +432,16 @@ DEFAULT_SETTINGS = {
     "library_hours": "",
     "librarian_name": "",
     "council_criteria": json.dumps({}),
+    # residents' association mode
+    "org_kind": "club",
+    "features": json.dumps({}),
+    "unit_types": json.dumps(["1BHK", "2BHK", "3BHK", "Villa", "Shop"]),
+    "maint_basis": "flat",
+    "maint_rate": "0",
+    "maint_rates_by_type": json.dumps({}),
+    "maint_period": "monthly",
+    "maint_due_day": "10",
+    "maint_late_fee": "0",
 }
 
 
