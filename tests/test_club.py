@@ -1155,3 +1155,104 @@ def test_terms_and_privacy_pages(admin):
     # linked from signup, pricing and the app's public shell
     assert '/terms?lang=en' in anon.get("/signup?lang=en").text and '/privacy?lang=ml' in anon.get("/pricing?lang=ml").text
     assert anon.get("/terms?lang=xx").status_code == 200
+
+
+def test_society_accounts_statements_close_and_tally(admin):
+    """Opening balances, entries in a past financial year, the three statements, year close with carry-forward and
+    lock, reopen, cash book and the Tally export. Today is in a later year, so the past year can be closed."""
+    fy = "2025-26"
+    assert admin.post("/api/settings", json={"fy_start_month": "4", "custom_heads": [{"key": "fixed_deposit", "en": "Fixed deposit", "ml": "സ്ഥിര നിക്ഷേപം", "kind": "both", "nature": "asset"}]}, headers=H).status_code == 200
+    heads = admin.get("/api/accounts/heads").json()
+    assert any(h["key"] == "fixed_deposit" and h["nature"] == "asset" for h in heads["heads"]) and heads["current_fy"].startswith(str(dt.date.today().year if dt.date.today().month >= 4 else dt.date.today().year - 1))
+    r = admin.post("/api/accounts/openings", json={"fy": fy, "cash": 1000, "bank": 5000, "items": [{"item": "books", "amount": 20000}, {"item": "library_deposit", "amount": 2000}]}, headers=H)
+    assert r.status_code == 200, r.text
+    tx = [("receipt", "subscription", 500, "cash"), ("receipt", "library_deposit", 300, "cash"), ("payment", "books", 1200, "bank"), ("payment", "rent", 400, "cash"),
+          ("payment", "deposit_refund", 100, "cash"), ("payment", "fixed_deposit", 1000, "bank")]
+    ids = []
+    for kind, head, amount, mode in tx:
+        r = admin.post("/api/finance/transactions", json={"kind": kind, "head": head, "party": "Test", "amount": amount, "mode": mode, "tx_date": "2025-06-10", "notify": False}, headers=H)
+        assert r.status_code == 200, r.text
+        ids.append(r.json()["id"])
+    assert admin.post("/api/accounts/contra", json={"head": "cash_to_bank", "amount": 500, "tx_date": "2025-07-01"}, headers=H).json()["no"].startswith("C/2025/")
+    st = admin.get(f"/api/accounts/statements?fy={fy}").json()
+    assert st["opening"] == {"cash": 1000, "bank": 5000, "derived": False}
+    assert st["closing"] == {"cash": 800, "bank": 3300}
+    assert st["ie"]["total_income"] == 500 and st["ie"]["total_expense"] == 400 and st["ie"]["surplus"] == 100
+    bs = st["bs"]
+    assert bs["general_fund"] == {"opening": 24000, "surplus": 100, "closing": 24100}
+    assets = {a["item"]: a["closing"] for a in bs["assets"]}; liabs = {a["item"]: a["closing"] for a in bs["liabilities"]}
+    assert assets == {"books": 21200, "fixed_deposit": 1000} and liabs == {"library_deposit": 2200}
+    assert bs["balanced"] and bs["total_assets"] == 26300 == bs["total_liabilities"]
+    assert st["rp"]["total_receipts"] == st["rp"]["total_payments"] == 1000 + 5000 + 800 + 500
+    cb = admin.get(f"/api/accounts/book?fy={fy}&book=cash").json()
+    assert cb["opening"] == 1000 and cb["closing"] == 800 and [x["balance"] for x in cb["rows"]][-1] == 800 and any(x["kind"] == "contra" for x in cb["rows"])
+    bb = admin.get(f"/api/accounts/book?fy={fy}&book=bank").json()
+    assert bb["closing"] == 3300 and bb["total_dr"] == 500 and bb["total_cr"] == 2200
+    lg = admin.get(f"/api/accounts/ledger?fy={fy}&head=books").json()
+    assert lg["total"] == 1200 and lg["nature"] == "asset"
+    for lang, needle in (("en", "Receipts and Payments Account"), ("ml", "ബാലൻസ് ഷീറ്റ്")):
+        p = admin.get(f"/api/accounts/statements/print?fy={fy}&lang={lang}")
+        assert p.status_code == 200 and needle in p.text and "24,100.00" in p.text
+    assert "Cash book" in admin.get(f"/api/accounts/book/print?fy={fy}&book=cash&lang=en").text
+    xml = admin.get(f"/api/accounts/tally.xml?fy={fy}").text
+    assert "Import Data" in xml and xml.count("<VOUCHER ") == 7 and 'VCHTYPE="Contra"' in xml and "Indirect Incomes" in xml and "Fixed Assets" in xml and "<AMOUNT>-500.00</AMOUNT>" in xml
+    # the current year cannot be closed; the past year can, and the balances carry forward
+    cur = heads["current_fy"]
+    assert admin.post("/api/accounts/close", json={"fy": cur}, headers=H).status_code == 400
+    r = admin.post("/api/accounts/close", json={"fy": fy, "note": "audited"}, headers=H)
+    assert r.status_code == 200, r.text
+    assert r.json()["next"] == "2026-27" and r.json()["closing"]["bank"] == 3300
+    op = admin.get("/api/accounts/openings?fy=2026-27").json()
+    assert op["cash"] == 800 and op["bank"] == 3300 and op["derived"] and op["locked"] and {i["item"]: i["amount"] for i in op["items"] if i["amount"]} == {"books": 21200, "library_deposit": 2200, "fixed_deposit": 1000}
+    assert admin.get(f"/api/accounts/statements?fy={fy}").json()["status"] == "closed"
+    # a closed year takes no entries, no voids and no opening changes
+    assert admin.post("/api/finance/transactions", json={"kind": "receipt", "head": "donation", "party": "x", "amount": 10, "tx_date": "2025-06-11"}, headers=H).status_code == 423
+    assert admin.post(f"/api/finance/transactions/{ids[0]}/void", json={"note": "x"}, headers=H).status_code == 423
+    assert admin.post("/api/accounts/openings", json={"fy": "2026-27", "cash": 1}, headers=H).status_code == 409
+    assert admin.post("/api/accounts/close", json={"fy": fy}, headers=H).status_code == 409
+    # reopen releases the lock and drops the carried-forward openings
+    assert admin.post("/api/accounts/reopen", json={"fy": fy}, headers=H).status_code == 200
+    assert admin.get("/api/accounts/openings?fy=2026-27").json()["cash"] == 0
+    assert admin.post("/api/finance/transactions", json={"kind": "receipt", "head": "donation", "party": "x", "amount": 10, "tx_date": "2025-06-11", "notify": False}, headers=H).status_code == 200
+    # members and the president cannot close; members cannot even look
+    mc = login("9847012345", "ramesh-pass-1")
+    assert mc.get("/api/accounts/statements").status_code == 403 and mc.post("/api/accounts/close", json={"fy": fy}, headers=H).status_code == 403
+    assert "finance.close" not in admin.get("/api/settings").json()["perms"].get("president", []) if "perms" in admin.get("/api/settings").json() else True
+
+
+def test_library_council_pack_and_grants(admin):
+    today = dt.date.today().isoformat()
+    r = admin.post("/api/settings", json={"council_reg_no": "KSLC/KTM/0421", "council_grade": "C", "council_district": "Kottayam", "council_taluk": "Meenachil", "library_hours": "9 am - 8 pm",
+                                          "council_criteria": {"books": [10, 5, 2, 1], "members": [10, 5, 3, 1], "issues": [10, 5, 2, 1], "periodicals": [5, 3, 2, 1], "reading_room": [10, 5, 2, 1], "programmes": [10, 5, 2, 1], "added": [10, 5, 2, 1]}}, headers=H)
+    assert r.status_code == 200, r.text
+    st = admin.get("/api/council/status").json()
+    a, m = st["assessment"], st["metrics"]
+    assert len(a["rows"]) == 7 and a["points"] == sum(x["points"] for x in a["rows"]) and a["max_points"] == 28 and a["declared"] == "C"
+    members_row = next(x for x in a["rows"] if x["key"] == "members")
+    assert members_row["value"] >= 3 and members_row["grade"] in ("A", "B", "C") and m["books"] >= 2 and m["issues"] >= 1
+    assert all((x["grade"] == "A") == (x["next"] is None) for x in a["rows"])
+    # a grant: its receipt is booked, vouchers are charged to it, the certificate adds them up
+    r = admin.post("/api/council/grants", json={"source": "Kerala State Library Council", "purpose_en": "Purchase of books", "purpose_ml": "പുസ്തകങ്ങൾ വാങ്ങൽ", "sanction_no": "KSLC/G/2026/77", "amount": 5000, "received_on": today}, headers=H)
+    assert r.status_code == 200, r.text
+    gid = r.json()["id"]
+    g = admin.get(f"/api/council/grants/{gid}").json()
+    assert g["receipt_id"] and g["utilised"] == 0 and g["balance"] == 5000 and g["fy"] == admin.get("/api/accounts/heads").json()["current_fy"]
+    assert admin.get(f"/api/finance/transactions?head=grant").json()["rows"][0]["amount"] == 5000
+    v1 = admin.post("/api/finance/transactions", json={"kind": "payment", "head": "books", "party": "DC Books", "amount": 2000, "mode": "bank", "tx_date": today}, headers=H).json()["id"]
+    v2 = admin.post("/api/finance/transactions", json={"kind": "payment", "head": "newspapers", "party": "Agent", "amount": 500, "mode": "cash", "tx_date": today, "grant_id": gid}, headers=H).json()["id"]
+    assert admin.post(f"/api/council/grants/{gid}/link", json={"add": [v1]}, headers=H).status_code == 200
+    g = admin.get(f"/api/council/grants/{gid}").json()
+    assert g["utilised"] == 2500 and g["balance"] == 2500 and {v["id"] for v in g["vouchers"]} == {v1, v2} and v1 not in {c["id"] for c in g["candidates"]}
+    uc = admin.get(f"/api/council/grants/{gid}/uc/print?lang=en").text
+    assert "Utilisation Certificate" in uc and "2,500.00" in uc and "KSLC/G/2026/77" in uc and "DC Books" in uc
+    assert "വിനിയോഗ സാക്ഷ്യപത്രം" in admin.get(f"/api/council/grants/{gid}/uc/print?lang=ml").text
+    admin.post(f"/api/council/grants/{gid}/link", json={"remove": [v2]}, headers=H)
+    assert admin.get(f"/api/council/grants/{gid}").json()["utilised"] == 2000
+    assert admin.get("/api/council/grants").json()[0]["balance"] == 3000
+    # the annual statement
+    for lang, needle in (("en", "Annual Statement for Library Council"), ("ml", "ലൈബ്രറി കൗൺസിൽ")):
+        p = admin.get(f"/api/council/statement/print?lang={lang}")
+        assert p.status_code == 200 and needle in p.text and "KSLC/KTM/0421" in p.text and "Kerala State Library Council" in p.text and "Meenachil" in p.text
+    assert admin.get("/api/council/status?fy=2025-26").json()["metrics"]["grants"] == []
+    mc = login("9847012345", "ramesh-pass-1")
+    assert mc.get("/api/council/status").status_code == 403 and mc.get("/api/council/grants").status_code == 403

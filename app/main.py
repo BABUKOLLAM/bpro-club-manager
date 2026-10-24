@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import auth, brand, comms, db, i18n, push, security, tenancy
 from .auth import can, current_user, require
-from . import members, news, committees, library, finance, reports, scheduler, facilities, payments, backup, polls, site, saas, legal, help as helpdoc
+from . import members, news, committees, library, finance, ledger, council, reports, scheduler, facilities, payments, backup, polls, site, saas, legal, help as helpdoc
 
 log = logging.getLogger("club")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -195,7 +195,10 @@ def settings_for(u):
     s["membership_types"] = json.loads(s["membership_types"])
     s["wards"] = json.loads(s["wards"])
     s["channels"] = comms.configured()
-    s["heads"] = {"receipt": i18n.RECEIPT_HEADS, "payment": i18n.PAYMENT_HEADS, "labels": i18n.HEAD_LABELS}
+    s["heads"] = {"receipt": ledger.heads_for("receipt"), "payment": ledger.heads_for("payment"), "labels": ledger.labels(), "natures": {h["key"]: h["nature"] for h in ledger.heads()}}
+    s["fy"] = {"current": ledger.current_fy(), "start_month": ledger.start_month()}
+    s["custom_heads"] = ledger.custom_heads()
+    s["council_criteria"] = council.criteria()
     s["roles"] = auth.ROLE_LABELS
     s["teams"] = json.loads(s["teams"])
     s["doc_categories"] = DOC_CATEGORIES
@@ -447,8 +450,12 @@ async def save_settings(request: Request, user=Depends(require("settings.manage"
                 continue
             if k in comms.SECRET_SETTINGS and v == MASK:
                 continue
-            if k in ("membership_types", "wards", "teams"):
+            if k in ("membership_types", "wards", "teams", "custom_heads"):
                 v = json.dumps(v if isinstance(v, list) else json.loads(v or "[]"))
+            if k in ("head_nature", "council_criteria"):
+                v = json.dumps(v if isinstance(v, dict) else json.loads(v or "{}"))
+            if k == "fy_start_month":
+                v = str(min(12, max(1, int(v or 4))))
             if k in ("brand_primary", "brand_accent"):
                 v = brand.valid_hex(v, db.DEFAULT_SETTINGS[k])
             if k == "sms_headers" and v:
@@ -791,6 +798,8 @@ app.include_router(news.router)
 app.include_router(committees.router)
 app.include_router(library.router)
 app.include_router(finance.router)
+app.include_router(ledger.router)
+app.include_router(council.router)
 app.include_router(reports.router)
 app.include_router(facilities.router)
 app.include_router(payments.router)
